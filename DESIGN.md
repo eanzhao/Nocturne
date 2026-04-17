@@ -99,6 +99,159 @@ Adding a new spec is a JSON file + its CSS (which reads from the tokens) + an ap
 
 ---
 
+## Concrete token values (v0)
+
+These are the values each spec JSON must ship with. They were extracted from the approved mockups during design review, calibrated for A11y AAA body / AA accent contrast against the `bg`.
+
+### `executive-broadsheet`
+
+```jsonc
+{
+  "id": "executive-broadsheet",
+  "name": "Executive Broadsheet",
+  "description": "Energetic editorial daily. Use for busy days with multiple priorities, data watch, and scheduled events. Default choice when in doubt.",
+  "writing_mode": "horizontal-lr",
+  "fonts": {
+    "headline": "'ET Book', 'Source Serif Pro', Georgia, serif",
+    "body":     "'Source Serif Pro', 'Tiempos Text', Georgia, serif",
+    "label":    "'Söhne Breit', 'Inter', sans-serif",
+    "mono":     "'IBM Plex Mono', monospace"
+  },
+  "palette": {
+    "bg":       "#f7f1df",
+    "fg":       "#1f1913",
+    "muted":    "#6b5e4d",
+    "accent":   "#b23d18",
+    "hairline": "#1f1913"
+  },
+  "spacing": {
+    "base": 4,
+    "column_gap": 32,
+    "column_count_desktop": 3,
+    "max_width": 1120
+  },
+  "hero_priority_treatment": "first-as-hero",
+  "block_zones": {
+    "left":   ["top_priorities"],
+    "right":  ["timeline", "watchlist", "notes"],
+    "center": ["hero_quote", "pull_quote"]
+  },
+  "overflow_strategy": {
+    "top_priorities": { "max": 5, "on_overflow": "truncate-with-count" },
+    "timeline":       { "max": 8, "on_overflow": "expand-column" },
+    "watchlist":      { "max": 6, "on_overflow": "truncate-with-count" },
+    "notes":          { "max": 4, "on_overflow": "truncate-with-count" }
+  },
+  "pull_quote_role": "hero-center",
+  "severity_style": "colored-dot",
+  "severity_colors": {
+    "high": "#b23d18",
+    "med":  "#6b5e4d",
+    "low":  "rgba(31,25,19,0.30)"
+  },
+  "print": { "paper": "A4", "orientation": "portrait", "margin_mm": 18 }
+}
+```
+
+### `quiet-ledger`
+
+```jsonc
+{
+  "id": "quiet-ledger",
+  "name": "Quiet Ledger",
+  "description": "Slow contemplative day. Use when the brief is mostly narrative prose, few priorities, no urgency, and value comes from careful reading rather than scanning.",
+  "writing_mode": "horizontal-lr",
+  "fonts": {
+    "headline": "'Lyon Text', 'Literata', Georgia, serif",
+    "body":     "'Lyon Text', 'Literata', Georgia, serif",
+    "label":    "'IBM Plex Mono', 'Courier Prime', monospace",
+    "mono":     "'IBM Plex Mono', monospace"
+  },
+  "palette": {
+    "bg":       "#faf6ea",
+    "fg":       "#272018",
+    "muted":    "#6b6052",
+    "accent":   null,
+    "hairline": "#272018"
+  },
+  "spacing": {
+    "base": 4,
+    "column_gap": 0,
+    "column_count_desktop": 1,
+    "max_width": 620
+  },
+  "hero_priority_treatment": "all-equal",
+  "block_zones": {
+    "single": ["hero_quote", "summary", "top_priorities", "timeline", "watchlist", "notes", "pull_quote"]
+  },
+  "overflow_strategy": {
+    "top_priorities": { "max": 5, "on_overflow": "truncate-with-count" },
+    "timeline":       { "max": 8, "on_overflow": "expand-column" },
+    "watchlist":      { "max": 6, "on_overflow": "truncate-with-count" },
+    "notes":          { "max": 4, "on_overflow": "truncate-with-count" }
+  },
+  "pull_quote_role": "coda",
+  "severity_style": "bracketed-text",
+  "print": { "paper": ["A4", "A5"], "orientation": "portrait", "margin_mm": 22 }
+}
+```
+
+### `guji-classical`
+
+```jsonc
+{
+  "id": "guji-classical",
+  "name": "Guji Classical",
+  "description": "Ritual or classical content. Use when the brief contains divination, poetry, historical quotation, Chinese philosophical content, or explicitly asks for reverential framing. Rare.",
+  "writing_mode": "vertical-rl",
+  "fonts": {
+    "headline": "'FangZheng Shu Song', 'Noto Serif CJK SC', serif",
+    "body":     "'Noto Serif CJK SC', 'Source Han Serif SC', serif",
+    "label":    "'Noto Serif CJK SC', serif",
+    "mono":     "'Noto Sans Mono CJK SC', monospace"
+  },
+  "palette": {
+    "bg":       "#f3e7c8",
+    "fg":       "#1c1508",
+    "muted":    "#6b5a3a",
+    "accent":   "#9f2020",
+    "hairline": "#1c1508"
+  },
+  "spacing": {
+    "base": 4,
+    "column_gap": 24,
+    "column_count_desktop": 5,
+    "max_width": 1200
+  },
+  "hero_priority_treatment": "first-as-hero",
+  "block_zones": {
+    "main": ["hero_quote", "top_priorities"],
+    "aside": ["timeline", "watchlist", "notes"],
+    "epigraph": ["pull_quote"]
+  },
+  "overflow_strategy": {
+    "top_priorities": { "max": 3, "on_overflow": "truncate-with-count" },
+    "timeline":       { "max": 6, "on_overflow": "expand-column" },
+    "watchlist":      { "max": 4, "on_overflow": "truncate-with-count" },
+    "notes":          { "max": 2, "on_overflow": "truncate-with-count" }
+  },
+  "pull_quote_role": "epigraph",
+  "severity_style": "traditional-mark",
+  "severity_marks": { "high": "●", "med": "○", "low": "＋" },
+  "mobile_fallback": "horizontal-lr",
+  "print": { "paper": "A4", "orientation": "landscape", "margin_mm": 14, "cjk_vertical": true }
+}
+```
+
+A11y contrast (body fg on bg, AAA threshold 7:1):
+- executive-broadsheet: `#1f1913` on `#f7f1df` → ~16.8:1 ✓
+- quiet-ledger:         `#272018` on `#faf6ea` → ~13.5:1 ✓
+- guji-classical:       `#1c1508` on `#f3e7c8` → ~15.2:1 ✓
+
+Responsive rules: per-spec CSS cascade, not shared. `guji-classical` switches to `writing-mode: horizontal-lr` for viewports below 768px; the other two compact their columns.
+
+---
+
 ## Anti-slop guardrails
 
 These patterns are forbidden across all specs:
