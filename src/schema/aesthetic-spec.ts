@@ -85,6 +85,18 @@ export const AestheticSpecSchema = z.object({
   severity_colors: severityColors.optional(),
   severity_marks: severityMarks.optional(),
   mobile_fallback: z.enum(['horizontal-lr', 'vertical-rl']).optional(),
+
+  /**
+   * House visual style for AI-generated figures rendered under this spec.
+   * Consumed by the future Visual Director prompt chain (see issue #25) to
+   * produce image/video prompts in the spec's aesthetic — e.g., "Bauhaus
+   * flat illustration, primary colors, geometric forms" or "19th-century
+   * broadside woodcut engraving on warm cream paper".
+   *
+   * Required on every spec. Use 3–4 comma-separated descriptor phrases in
+   * English. `min(1)` does not reject whitespace-only strings; that's
+   * tightened once the Visual Director actually consumes the field.
+   */
   visual_style_hint: z.string().min(1),
   print: z.object({
     paper: z.union([paperValue, z.array(paperValue).nonempty()]),
