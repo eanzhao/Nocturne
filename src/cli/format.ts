@@ -43,13 +43,13 @@ import {
   writeConfigFile,
 } from "./config-file.ts";
 import {
-  listProxyServices,
+  listUserServices,
   NyxIDStatusError,
   normalizeLlmRoute,
   readNyxIDTokens,
   resolveNyxIDGateway,
-  type NyxIDProxyService,
   type NyxIDTokens,
+  type NyxIDUserService,
 } from "./nyxid-auth.ts";
 
 export type Subcommand =
@@ -445,47 +445,34 @@ async function runStatus(
       }
     }
 
-    // Proxy services are a parallel universe to the LLM gateway —
-    // listed separately so the user can see slugs to plug into
-    // `config set llm-route <slug>`.
+    // User-services are the user's actually-configured proxy routes
+    // (Ollama, Mimo, SiliconFlow, chrono-llm, …) — the slugs here are
+    // what go into `config set llm-route <slug>`. Distinct from the
+    // global NyxID service catalog (`/api/v1/proxy/services`), which
+    // lists template integrations and mostly isn't actionable.
     try {
-      const services = await listProxyServices(tokens);
-      const byCategory = new Map<string, NyxIDProxyService[]>();
-      for (const s of services) {
-        if (!byCategory.has(s.category)) byCategory.set(s.category, []);
-        byCategory.get(s.category)!.push(s);
-      }
+      const services = await listUserServices(tokens);
       if (services.length === 0) {
-        lines.push("  proxy services : (none visible to this token)");
+        lines.push("  user services  : (none registered — add one at /keys on the NyxID dashboard)");
       } else {
-        lines.push("  proxy services :");
-        // Surface the non-internal ones first — those are the
-        // user-configured integrations they came to this CLI to use.
-        const order = ["connection", "user", "custom", "internal"];
-        const seen = new Set<string>();
-        for (const cat of order) {
-          const group = byCategory.get(cat);
-          if (!group) continue;
-          seen.add(cat);
-          for (const s of group) {
-            lines.push(formatProxyServiceRow(s));
-          }
-        }
-        for (const [cat, group] of byCategory) {
-          if (seen.has(cat)) continue;
-          for (const s of group) {
-            lines.push(formatProxyServiceRow(s));
-          }
+        lines.push("  user services  :");
+        // Custom user-registered ones first (no catalog binding) —
+        // those are what drew the user to this CLI. Catalog-linked
+        // entries (like `chrono-llm`) follow.
+        const custom = services.filter((s) => !s.fromCatalog);
+        const catalog = services.filter((s) => s.fromCatalog);
+        for (const s of [...custom, ...catalog]) {
+          lines.push(formatUserServiceRow(s));
         }
       }
     } catch (err) {
       if (err instanceof NyxIDStatusError) {
         lines.push(
-          `  proxy services : ${err.hint} — ${err.message}`,
+          `  user services  : ${err.hint} — ${err.message}`,
         );
       } else {
         lines.push(
-          `  proxy services : errored (${err instanceof Error ? err.message : String(err)})`,
+          `  user services  : errored (${err instanceof Error ? err.message : String(err)})`,
         );
       }
     }
@@ -509,15 +496,14 @@ async function runStatus(
   process.stdout.write(`${lines.join("\n")}\n`);
 }
 
-function formatProxyServiceRow(s: NyxIDProxyService): string {
-  const status = s.connected
-    ? "connected"
-    : s.requiresConnection
-      ? "needs-connect"
-      : "";
-  const statusSuffix = status ? ` · ${status}` : "";
+function formatUserServiceRow(s: NyxIDUserService): string {
+  const tags: string[] = [];
+  if (!s.active) tags.push("inactive");
+  tags.push(s.fromCatalog ? "catalog" : "custom");
+  tags.push(`auth:${s.authMethod}`);
   const nameBit = s.name && s.name !== s.slug ? `  "${s.name}"` : "";
-  return `    · ${s.slug}${nameBit}  [${s.category}${statusSuffix}]`;
+  const endpointBit = s.endpointUrl ? `  → ${s.endpointUrl}` : "";
+  return `    · ${s.slug}${nameBit}  [${tags.join(" · ")}]${endpointBit}`;
 }
 
 // ---------------------------------------------------------------------------

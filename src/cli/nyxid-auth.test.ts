@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
-  listProxyServices,
+  listUserServices,
   normalizeLlmRoute,
   NyxIDStatusError,
   readNyxIDTokens,
@@ -189,57 +189,93 @@ describe("normalizeLlmRoute", () => {
 });
 
 // ---------------------------------------------------------------------------
-// listProxyServices — happy path, auth, malformed
+// listUserServices — unified /api/v1/keys endpoint
 
-describe("listProxyServices", () => {
+describe("listUserServices", () => {
   const tokens = {
     baseUrl: "https://nyx.example.com",
     accessToken: "tok-abc",
   };
 
-  it("returns a flattened list with defaults for optional fields", async () => {
+  it("hits /api/v1/keys and maps the unified record shape", async () => {
     const fetchImpl = async (url: string, init?: RequestInit) => {
-      expect(url).toBe("https://nyx.example.com/api/v1/proxy/services");
+      expect(url).toBe("https://nyx.example.com/api/v1/keys");
       const auth = new Headers(init?.headers).get("Authorization");
       expect(auth).toBe("Bearer tok-abc");
       return new Response(
         JSON.stringify({
-          services: [
+          keys: [
             {
-              slug: "chrono-llm",
-              name: "Chrono LLM",
-              connected: false,
-              requires_connection: true,
-              service_category: "connection",
+              id: "k-1",
+              slug: "mlx-from-macstudio-77tf",
+              label: "MLX from MacStudio",
+              endpoint_url: "http://localhost:8093/v1",
+              auth_method: "header",
+              status: "active",
+              is_active: true,
+              catalog_service_id: null,
+              catalog_service_name: null,
+              last_used_at: null,
             },
-            { slug: "foo-bare" }, // only slug — defaults fill in
+            {
+              id: "k-2",
+              slug: "chrono-llm",
+              // no user-chosen label — falls back to catalog name
+              endpoint_url: "https://llm.aelf.dev/v1",
+              auth_method: "header",
+              status: "active",
+              is_active: true,
+              catalog_service_id: "cat-chrono-llm",
+              catalog_service_name: "Chrono LLM",
+              last_used_at: "2026-04-18T16:00:12Z",
+            },
+            {
+              id: "k-3",
+              slug: "stale-thing",
+              is_active: false,
+              status: "inactive",
+            },
           ],
         }),
         { status: 200 },
       );
     };
-    const services = await listProxyServices(tokens, { fetchImpl });
-    expect(services).toHaveLength(2);
-    expect(services[0]).toMatchObject({
-      slug: "chrono-llm",
-      name: "Chrono LLM",
-      connected: false,
-      requiresConnection: true,
-      category: "connection",
-    });
-    expect(services[1]).toMatchObject({
-      slug: "foo-bare",
-      name: "foo-bare", // falls back to slug
-      connected: false,
-      requiresConnection: false,
-      category: "unknown",
-    });
+    const services = await listUserServices(tokens, { fetchImpl });
+    expect(services).toEqual([
+      {
+        slug: "mlx-from-macstudio-77tf",
+        name: "MLX from MacStudio", // user label wins
+        endpointUrl: "http://localhost:8093/v1",
+        active: true,
+        authMethod: "header",
+        fromCatalog: false,
+        lastUsedAt: null,
+      },
+      {
+        slug: "chrono-llm",
+        name: "Chrono LLM", // catalog name used when label missing
+        endpointUrl: "https://llm.aelf.dev/v1",
+        active: true,
+        authMethod: "header",
+        fromCatalog: true,
+        lastUsedAt: "2026-04-18T16:00:12Z",
+      },
+      {
+        slug: "stale-thing",
+        name: "stale-thing", // slug fallback, no catalog, no label
+        endpointUrl: null,
+        active: false,
+        authMethod: "unknown",
+        fromCatalog: false,
+        lastUsedAt: null,
+      },
+    ]);
   });
 
   it("throws NyxIDStatusError(unauthorized) on 401", async () => {
     const fetchImpl = async () => new Response("", { status: 401 });
     try {
-      await listProxyServices(tokens, { fetchImpl });
+      await listUserServices(tokens, { fetchImpl });
       throw new Error("should have thrown");
     } catch (err) {
       expect(err).toBeInstanceOf(NyxIDStatusError);
@@ -249,9 +285,9 @@ describe("listProxyServices", () => {
 
   it("throws NyxIDStatusError(malformed) on schema mismatch", async () => {
     const fetchImpl = async () =>
-      new Response(JSON.stringify({ not_services: [] }), { status: 200 });
+      new Response(JSON.stringify({ not_keys: [] }), { status: 200 });
     try {
-      await listProxyServices(tokens, { fetchImpl });
+      await listUserServices(tokens, { fetchImpl });
       throw new Error("should have thrown");
     } catch (err) {
       expect(err).toBeInstanceOf(NyxIDStatusError);

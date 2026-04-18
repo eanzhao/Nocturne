@@ -177,47 +177,71 @@ export async function resolveNyxIDGateway(
 }
 
 /*
- * NyxID proxy services — user-registered HTTP services that NyxID proxies
- * under `/api/v1/proxy/s/<slug>/*`, injecting credentials. Distinct from
- * the LLM Gateway (which is prefix-routed, built-in providers only).
+ * NyxID connected services — the unified "keys API" at `/api/v1/keys`.
+ * This is the single source of truth for services the user has
+ * actually connected: each entry bundles the slug (routable via
+ * `/api/v1/proxy/s/<slug>/*`), a user-chosen label, the upstream URL,
+ * auth method, activity status, and optional catalog binding.
  *
- * Treated as LLM providers for Nocturne's purposes: a user can route
- * `renderPage`'s planner call through any of these by setting config
- * `llm_route=<slug>` (or a full path like `/api/v1/proxy/s/<slug>`).
+ * Referenced in NyxID docs as "the primary entry point for users
+ * connecting external services" — which is exactly what we want to
+ * show when the user runs `nocturne-format status`.
  */
-const ProxyServicesResponse = z.object({
-  services: z.array(
+const KeysResponse = z.object({
+  keys: z.array(
     z.object({
+      id: z.string(),
       slug: z.string(),
-      name: z.string().optional(),
-      description: z.string().optional(),
-      connected: z.boolean().optional(),
-      requires_connection: z.boolean().optional(),
-      service_category: z.string().optional(),
+      label: z.string().optional(),
+      endpoint_url: z.string().optional(),
+      auth_method: z.string().optional(),
+      status: z.string().optional(),
+      is_active: z.boolean().optional(),
+      catalog_service_id: z.string().nullable().optional(),
+      catalog_service_name: z.string().nullable().optional(),
+      catalog_service_slug: z.string().nullable().optional(),
+      last_used_at: z.string().nullable().optional(),
     }),
   ),
 });
 
-export interface NyxIDProxyService {
+export interface NyxIDUserService {
+  /** Developer-friendly slug, used to build `/api/v1/proxy/s/<slug>/*`. */
   slug: string;
+  /**
+   * Display name. Prefer the user-chosen `label` (e.g. "MLX from
+   * MacStudio"); fall back to the catalog name (`Chrono LLM`); fall
+   * back to the slug so we always have something to print.
+   */
   name: string;
-  connected: boolean;
-  requiresConnection: boolean;
-  category: string;
+  /** Upstream URL NyxID forwards to (visible only for debugging/UX). */
+  endpointUrl: string | null;
+  /** Active services are the only ones that will actually proxy. */
+  active: boolean;
+  /** bearer, header, token_exchange, none, path, … */
+  authMethod: string;
+  /** True when this service inherits config from NyxID's catalog. */
+  fromCatalog: boolean;
+  /** ISO timestamp of the last proxy hit, or null if never used. */
+  lastUsedAt: string | null;
 }
 
 /**
- * List proxy services visible to the current user. Does not throw on an
- * empty list — returns `[]`. Surfaces the same `NyxIDStatusError` kinds
- * as `resolveNyxIDGateway` for symmetry.
+ * List the current user's connected services via `/api/v1/keys`. A
+ * single round-trip gives us slug + label + endpoint + activity in one
+ * shot, so we don't need the separate catalog-enrichment fetch that an
+ * earlier version required.
+ *
+ * Does not throw on an empty result — returns `[]`. Surfaces the same
+ * `NyxIDStatusError` kinds as `resolveNyxIDGateway`.
  */
-export async function listProxyServices(
+export async function listUserServices(
   tokens: NyxIDTokens,
   opts: { fetchImpl?: FetchLike; timeoutMs?: number } = {},
-): Promise<NyxIDProxyService[]> {
+): Promise<NyxIDUserService[]> {
   const fetchImpl = opts.fetchImpl ?? fetch;
   const timeoutMs = opts.timeoutMs ?? 5_000;
-  const url = `${tokens.baseUrl}/api/v1/proxy/services`;
+  const url = `${tokens.baseUrl}/api/v1/keys`;
 
   let res: Response;
   try {
@@ -229,7 +253,7 @@ export async function listProxyServices(
   } catch (err) {
     throw new NyxIDStatusError(
       "network",
-      `NyxID proxy services fetch failed: ${err instanceof Error ? err.message : String(err)}`,
+      `NyxID keys fetch failed: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
 
@@ -243,7 +267,7 @@ export async function listProxyServices(
   if (!res.ok) {
     throw new NyxIDStatusError(
       "network",
-      `NyxID proxy services returned HTTP ${res.status}`,
+      `NyxID keys returned HTTP ${res.status}`,
       res.status,
     );
   }
@@ -254,24 +278,26 @@ export async function listProxyServices(
   } catch (err) {
     throw new NyxIDStatusError(
       "malformed",
-      `NyxID proxy services returned non-JSON: ${err instanceof Error ? err.message : String(err)}`,
+      `NyxID keys returned non-JSON: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
 
-  const parsed = ProxyServicesResponse.safeParse(body);
+  const parsed = KeysResponse.safeParse(body);
   if (!parsed.success) {
     throw new NyxIDStatusError(
       "malformed",
-      `NyxID proxy services envelope did not match expected shape: ${parsed.error.message}`,
+      `NyxID /api/v1/keys envelope did not match expected shape: ${parsed.error.message}`,
     );
   }
 
-  return parsed.data.services.map((s) => ({
-    slug: s.slug,
-    name: s.name ?? s.slug,
-    connected: s.connected ?? false,
-    requiresConnection: s.requires_connection ?? false,
-    category: s.service_category ?? "unknown",
+  return parsed.data.keys.map((k) => ({
+    slug: k.slug,
+    name: k.label ?? k.catalog_service_name ?? k.slug,
+    endpointUrl: k.endpoint_url ?? null,
+    active: (k.is_active ?? true) && (k.status ?? "active") === "active",
+    authMethod: k.auth_method ?? "unknown",
+    fromCatalog: Boolean(k.catalog_service_id),
+    lastUsedAt: k.last_used_at ?? null,
   }));
 }
 
