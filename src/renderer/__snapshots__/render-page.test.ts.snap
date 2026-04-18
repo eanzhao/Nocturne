@@ -1,0 +1,1911 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`renderPage — all specs snapshot: executive-broadsheet × full daily_brief_v1 fixture: render-executive-broadsheet 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr" class="writing-mode-horizontal-lr" data-writing-mode="horizontal-lr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="generator" content="Nocturne" />
+  <meta name="nocturne:spec" content="executive-broadsheet" />
+  <title>A Thursday in mid-April</title>
+  <style data-nocturne="tokens">:root {
+  --bg: #f7f1df;
+  --fg: #1f1913;
+  --muted: #6b5e4d;
+  --accent: #b23d18;
+  --hairline: #1f1913;
+  --font-headline: 'ET Book', 'Source Serif Pro', Georgia, serif;
+  --font-body: 'Source Serif Pro', 'Tiempos Text', Georgia, serif;
+  --font-label: 'Söhne Breit', 'Inter', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --space-base: 4px;
+  --column-gap: 32px;
+  --column-count-desktop: 3;
+  --max-width: 1120px;
+  --writing-mode: horizontal-lr;
+  --severity-high: #b23d18;
+  --severity-med: #6b5e4d;
+  --severity-low: rgba(31,25,19,0.30);
+}</style>
+  <style data-nocturne="base">/*
+ * Nocturne — base stylesheet (issue #5).
+ *
+ * This is the ONLY stylesheet that every spec consumes unconditionally.
+ * It is a token-driven reset + typography skeleton: each rule reads from
+ * CSS custom properties that the renderer inlines on \`:root\` from the
+ * active AestheticSpec. There is no spec-specific CSS in this file —
+ * DESIGN.md forbids a shared "house style" beyond structural glue.
+ *
+ * Tokens consumed (all inlined by \`renderPage\`):
+ *   --bg, --fg, --muted, --accent, --hairline
+ *   --font-headline, --font-body, --font-label, --font-mono
+ *   --space-base, --column-gap, --column-count-desktop, --max-width
+ *   --severity-high, --severity-med, --severity-low  (only when severity_style="colored-dot")
+ *
+ * Anything that looks aesthetic here (sizes, weights) is either structural
+ * (e.g. a 1em leading baseline) or a *default* that a per-spec stylesheet
+ * is free to override. Per DESIGN.md, per-spec CSS files are intentionally
+ * NOT shipped in v0 — we see how far token-driven + base.css carries us.
+ */
+
+/* ---------- Reset (modern normalize, trimmed) ----------- */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, h1, h2, h3, h4, h5, h6, p, figure, blockquote, dl, dd, ol, ul {
+  margin: 0;
+}
+
+ol, ul { padding: 0; list-style: none; }
+
+img, picture, svg { max-width: 100%; display: block; }
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+a { color: inherit; text-decoration: underline; text-underline-offset: 0.15em; }
+a:hover { text-decoration-thickness: 2px; }
+
+/* ---------- Page skeleton (token-driven) ---------- */
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  writing-mode: var(--writing-mode, horizontal-tb);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.55;
+  font-kerning: normal;
+  font-variant-numeric: oldstyle-nums proportional-nums;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  padding: calc(var(--space-base) * 6);
+}
+
+.page {
+  max-width: var(--max-width);
+  margin: 0 auto;
+}
+
+/* ---------- Typography defaults ---------- */
+
+h1, h2, h3 {
+  font-family: var(--font-headline);
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--fg);
+}
+
+h1 { font-size: clamp(2rem, 3.5vw, 3.25rem); letter-spacing: -0.01em; }
+h2 { font-size: 1.5rem; margin-top: calc(var(--space-base) * 6); }
+h3 { font-size: 1.125rem; margin-top: calc(var(--space-base) * 4); }
+
+p + p { margin-top: calc(var(--space-base) * 3); }
+
+.label,
+.block-label,
+.provenance-strip,
+.chrome-btn {
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mono, time, .numeric { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+blockquote, .hero-quote, .pull-quote {
+  font-family: var(--font-headline);
+  font-size: 1.5rem;
+  line-height: 1.3;
+  font-style: italic;
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+  padding: calc(var(--space-base) * 4) 0;
+  margin: calc(var(--space-base) * 6) 0;
+}
+
+/* ---------- Layout zones ---------- */
+/*
+ * The renderer drops a \`.layout layout-zones-<N>\` wrapper where N = number
+ * of zones in spec.block_zones. Concrete visual layout per-zone-count is
+ * defined below — each spec gets whatever zone count its JSON declares.
+ */
+.layout {
+  display: grid;
+  gap: var(--column-gap);
+  grid-template-columns: 1fr;
+}
+
+/* 3-zone specs (executive-broadsheet: left / center / right).
+   Center is the narrative spine, left / right flank it. */
+.layout-zones-3 {
+  grid-template-columns: 1.05fr 1.3fr 1fr;
+  grid-template-areas: "left center right";
+}
+.layout-zones-3 > .zone-left   { grid-area: left; }
+.layout-zones-3 > .zone-right  { grid-area: right; }
+.layout-zones-3 > .zone-center { grid-area: center; order: 0; }
+
+/* 1-zone specs (quiet-ledger single column). */
+.layout-zones-1 { max-width: var(--max-width); }
+
+/* guji-classical has 3 zones too (main / aside / epigraph) but wants
+   vertical flow — for vertical-rl writing mode, grid auto-flips. */
+.layout :where(.zone-main, .zone-aside, .zone-epigraph) { min-width: 0; }
+.layout-zones-3 > .zone-main     { grid-area: left; }
+.layout-zones-3 > .zone-aside    { grid-area: right; }
+.layout-zones-3 > .zone-epigraph { grid-area: center; }
+
+.zone {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-base) * 5);
+  min-width: 0;
+}
+
+/* ---------- Masthead (spec-agnostic but token-styled) ---------- */
+
+.masthead {
+  border-bottom: 2px solid var(--hairline);
+  padding-bottom: calc(var(--space-base) * 3);
+  margin-bottom: calc(var(--space-base) * 6);
+}
+.masthead .date-label {
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: calc(var(--space-base) * 1);
+}
+.masthead .dek {
+  font-family: var(--font-body);
+  font-size: 1.125rem;
+  font-style: italic;
+  color: var(--muted);
+  margin-top: calc(var(--space-base) * 2);
+  max-width: 60ch;
+}
+
+/* ---------- Block: priorities ---------- */
+
+.priority-list { display: flex; flex-direction: column; gap: calc(var(--space-base) * 5); }
+
+.priority-item {
+  border-top: 1px solid var(--hairline);
+  padding-top: calc(var(--space-base) * 3);
+}
+.priority-item .num {
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+}
+.priority-item .title {
+  font-family: var(--font-headline);
+  font-size: 1.25rem;
+  line-height: 1.25;
+  margin-top: calc(var(--space-base) * 1);
+}
+.priority-item .why {
+  color: var(--muted);
+  font-size: 0.95rem;
+  margin-top: calc(var(--space-base) * 2);
+}
+.priority-item .action {
+  font-family: var(--font-label);
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-top: calc(var(--space-base) * 2);
+}
+
+.priority-item.is-hero .title {
+  font-size: 1.75rem;
+  line-height: 1.2;
+}
+.priority-item.is-hero {
+  border-top-width: 3px;
+}
+
+.overflow-coda {
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: calc(var(--space-base) * 2);
+}
+
+.empty-fallback {
+  font-family: var(--font-body);
+  font-style: italic;
+  color: var(--muted);
+  margin-top: calc(var(--space-base) * 2);
+}
+
+/* ---------- Block: timeline ---------- */
+
+.timeline { display: grid; grid-template-columns: auto 1fr; gap: calc(var(--space-base) * 2) calc(var(--space-base) * 4); }
+.timeline .time {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.timeline .item { font-size: 0.95rem; }
+
+/* ---------- Block: watchlist ---------- */
+
+.watchlist { display: flex; flex-direction: column; gap: calc(var(--space-base) * 2); }
+.watchlist-item { display: flex; align-items: baseline; gap: calc(var(--space-base) * 2); }
+.watchlist-item .label { flex: 0 0 auto; }
+.watchlist-item .note { color: var(--muted); font-size: 0.9rem; }
+
+/* severity_style: colored-dot */
+.sev-dot {
+  display: inline-block;
+  width: 0.65em;
+  height: 0.65em;
+  border-radius: 50%;
+  vertical-align: middle;
+  margin-right: 0.3em;
+}
+.sev-dot.sev-high { background: var(--severity-high, var(--accent)); }
+.sev-dot.sev-med  { background: var(--severity-med, var(--muted)); }
+.sev-dot.sev-low  { background: var(--severity-low, var(--hairline)); }
+
+/* severity_style: bracketed-text */
+.sev-bracket {
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+  margin-right: 0.3em;
+}
+
+/* severity_style: traditional-mark */
+.sev-mark {
+  font-family: var(--font-body);
+  font-size: 1em;
+  margin-right: 0.3em;
+  color: var(--accent, var(--fg));
+}
+
+/* ---------- Block: notes ---------- */
+
+.notes { display: flex; flex-direction: column; gap: calc(var(--space-base) * 4); }
+.notes-item .heading {
+  font-family: var(--font-label);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: calc(var(--space-base) * 1);
+}
+.notes-item .body { font-size: 0.95rem; }
+
+/* ---------- Block: summary ---------- */
+
+.summary {
+  font-size: 1.05rem;
+  max-width: 60ch;
+}
+
+/* ---------- Chrome zone ---------- */
+
+.chrome-zone {
+  position: relative;
+  border-top: 1px solid var(--hairline);
+  margin-top: calc(var(--space-base) * 12);
+  padding: calc(var(--space-base) * 4) 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--space-base) * 4);
+  align-items: center;
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.chrome-zone .chrome-btn {
+  border: 1px solid var(--hairline);
+  padding: calc(var(--space-base) * 2) calc(var(--space-base) * 3);
+  color: var(--fg);
+  background: transparent;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+}
+.chrome-zone .chrome-btn:hover { background: var(--fg); color: var(--bg); }
+.chrome-zone .chrome-btn[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.chrome-zone .rate-group { display: inline-flex; gap: calc(var(--space-base) * 1); }
+.chrome-zone .spacer { flex: 1 1 auto; }
+
+.export-pdf-popover {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: calc(var(--space-base) * 2);
+  padding: calc(var(--space-base) * 3) calc(var(--space-base) * 4);
+  background: var(--fg);
+  color: var(--bg);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  letter-spacing: normal;
+  text-transform: none;
+  max-width: 36ch;
+  z-index: 10;
+}
+
+/* ---------- Provenance strip ---------- */
+
+.provenance-strip {
+  margin-top: calc(var(--space-base) * 6);
+  padding-top: calc(var(--space-base) * 3);
+  border-top: 1px solid var(--hairline);
+  color: var(--muted);
+  font-family: var(--font-label);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--space-base) * 3);
+}
+.provenance-strip .sep { color: var(--hairline); }
+.provenance-strip .wordmark { color: var(--fg); font-weight: 600; letter-spacing: 0.2em; }
+
+/* ---------- Vertical writing mode (guji-classical) ---------- */
+
+.writing-mode-vertical-rl {
+  writing-mode: vertical-rl;
+  -webkit-writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+.writing-mode-vertical-rl body {
+  min-height: 100vh;
+}
+.writing-mode-vertical-rl .layout {
+  grid-auto-flow: column;
+  grid-template-columns: none;
+  grid-auto-columns: minmax(14em, 1fr);
+  min-height: 80vh;
+}
+
+/* ---------- Responsive collapse ---------- */
+
+@media (max-width: 900px) {
+  .layout-zones-3 {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "center"
+      "left"
+      "right";
+  }
+  body { padding: calc(var(--space-base) * 4); }
+}
+
+@media (max-width: 768px) {
+  .writing-mode-vertical-rl {
+    writing-mode: horizontal-tb;
+    -webkit-writing-mode: horizontal-tb;
+    text-orientation: unset;
+  }
+  .writing-mode-vertical-rl .layout {
+    grid-auto-flow: row;
+    grid-template-columns: 1fr;
+    grid-auto-columns: auto;
+    min-height: auto;
+  }
+}
+</style>
+  <style data-nocturne="print">/*
+ * Nocturne — print stylesheet (issue #9, Part 2).
+ *
+ * Scope:
+ *   - @media print rules only. Screen styles live in per-spec CSS.
+ *   - Handles the cross-cutting print contract: what is hidden, what is
+ *     preserved, and what page geometry each spec gets.
+ *
+ * Per-spec tokens (paper / orientation / margin) are applied via classes that
+ * the renderer drops on <body>: \`.spec-executive-broadsheet\`,
+ * \`.spec-quiet-ledger\`, \`.spec-guji-classical\`. Values match each spec JSON's
+ * \`print\` block in DESIGN.md.
+ *
+ * This file intentionally reads no external CSS custom properties at the
+ * @page level — browsers do not let @page rules read vars from arbitrary
+ * elements. Values are inlined per spec class instead.
+ */
+
+/* ---------------------------------------------------------------------- */
+/* Default page geometry: executive-broadsheet (the default when in doubt) */
+/* ---------------------------------------------------------------------- */
+@page {
+  size: A4 portrait;
+  margin: 18mm;
+}
+
+@media print {
+  /* Hide the chrome zone (Export-as-PDF button, rating widgets, copy-link,
+   * any inline popovers). These never belong on paper. */
+  .chrome-zone,
+  .chrome-zone * {
+    display: none !important;
+  }
+
+  /* The provenance strip — "Issue #<N> · <date> · <model> · NOCTURNE" — must
+   * survive printing. It is the page's archival metadata. */
+  .provenance-strip {
+    display: block !important;
+    break-inside: avoid;
+  }
+
+  /* Sensible defaults every spec inherits unless it overrides. */
+  html, body {
+    background: #ffffff !important; /* printers don't need the tinted ground */
+    color: #000000;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Keep the tinted paper colors when the spec class opts in. Each spec
+   * re-asserts its own bg so we don't lose the aesthetic. */
+  .spec-executive-broadsheet { background: #f7f1df !important; color: #1f1913; }
+  .spec-quiet-ledger         { background: #faf6ea !important; color: #272018; }
+  .spec-guji-classical       { background: #f3e7c8 !important; color: #1c1508; }
+
+  /* Break behavior: headlines and quote blocks stay with their context. */
+  h1, h2, h3 { break-after: avoid-page; }
+  blockquote, .hero-quote, .pull-quote { break-inside: avoid-page; }
+
+  /* Links shouldn't inflate the page with (url) annotations. */
+  a[href]::after { content: ""; }
+}
+
+/* ---------------------------------------------------------------------- */
+/* Per-spec @page overrides                                               */
+/*                                                                        */
+/* Browsers apply the @page rule matched to the printing document. We use */
+/* named page selectors bound to the spec class via \`page: <name>\` on the */
+/* body. This is the portable way to get per-spec margins + orientation.  */
+/* ---------------------------------------------------------------------- */
+
+/* executive-broadsheet: A4 portrait, 18mm (matches the default above, but
+ * we name it explicitly so a future spec change doesn't silently inherit). */
+@page executive-broadsheet {
+  size: A4 portrait;
+  margin: 18mm;
+}
+.spec-executive-broadsheet { page: executive-broadsheet; }
+
+/* quiet-ledger: A4 or A5 portrait, 22mm. We pick A4 as the print default;
+ * A5 is only reachable via an explicit \`@media print and (...)\` block below
+ * when the renderer eventually lets the user choose. */
+@page quiet-ledger {
+  size: A4 portrait;
+  margin: 22mm;
+}
+.spec-quiet-ledger { page: quiet-ledger; }
+
+/* guji-classical: vertical-rl writing mode, A4 LANDSCAPE, 14mm margin, and
+ * the CJK-vertical printing expectation from the spec JSON.
+ *
+ * This is scaffolded NOW so the contract is committed before the renderer
+ * for guji-classical exists (per issue #9 direction). The actual renderer
+ * work lands with issue #5; this stylesheet will already match.
+ */
+@page guji-classical {
+  size: A4 landscape;
+  margin: 14mm;
+}
+.spec-guji-classical {
+  page: guji-classical;
+}
+
+@media print {
+  .spec-guji-classical {
+    /* Vertical writing mode must hold through print; browsers are
+     * famously inconsistent here, which is one reason Vivliostyle is the
+     * chosen PDF engine instead of \`window.print()\` for this spec. */
+    writing-mode: vertical-rl;
+    -webkit-writing-mode: vertical-rl;
+    text-orientation: mixed;
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+/* Export-as-PDF client UX — printing must not leak the popover            */
+/* ---------------------------------------------------------------------- */
+@media print {
+  /* The "Use 'Save as PDF' in your browser's print dialog" popover that
+   * issue #5's chrome-zone component will attach. Hidden defensively even
+   * though .chrome-zone is already display:none — the popover may render
+   * in a portal outside the chrome zone. */
+  .export-pdf-popover,
+  [data-nocturne-popover="export-pdf"] {
+    display: none !important;
+  }
+}
+</style>
+</head>
+<body class="writing-mode-horizontal-lr spec-executive-broadsheet">
+  <div class="page">
+    <header class="masthead"><div class="date-label">2026-04-17</div><h1 class="title">A Thursday in mid-April</h1><p class="dek">Three decisions before noon and one long afternoon.</p></header>
+    <div class="layout layout-zones-3"><section class="zone zone-left" data-zone="left"><section class="priority-list-section"><h2 class="block-label">Top Priorities</h2><ol class="priority-list"><li class="priority-item is-hero"><div class="num">01</div><div class="title">Ship the renderer PR</div><div class="why">Blocks issues #7 and #8 from landing.</div><div class="action">Open PR; request Eanz to review.</div></li><li class="priority-item"><div class="num">02</div><div class="title">Call Mom</div><div class="why">Been a week.</div><div class="action">Before 8pm.</div></li><li class="priority-item"><div class="num">03</div><div class="title">Run errands</div><div class="why">Groceries running low.</div></li></ol></section></section><section class="zone zone-right" data-zone="right"><section class="timeline-section"><h2 class="block-label">Timeline</h2><div class="timeline"><div class="time">09:00</div><div class="item">Standup — ship rate for the week</div><div class="time">11:30</div><div class="item">Lunch with Kai</div><div class="time">14:00</div><div class="item">Deep work: renderer pass</div><div class="time">18:00</div><div class="item">Close laptop, reading block</div></div></section><section class="watchlist-section"><h2 class="block-label">Watchlist</h2><ul class="watchlist"><li class="watchlist-item"><span class="sev-dot sev-med" aria-label="med"></span><span class="label">CI flakiness</span><span class="note">— e2e flake last night, keep an eye on tomorrow morning.</span></li><li class="watchlist-item"><span class="sev-dot sev-high" aria-label="high"></span><span class="label">Supabase rate-limit budget</span><span class="note">— at 70% — will trip next week at current pace.</span></li><li class="watchlist-item"><span class="sev-dot sev-low" aria-label="low"></span><span class="label">Disk space on box-01</span></li></ul></section><section class="notes-section"><h2 class="block-label">Notes</h2><div class="notes"><div class="notes-item"><div class="heading">Idea</div><div class="body">Add a mobile-fallback media query for guji-classical that flips writing-mode horizontally under 768px.</div></div><div class="notes-item"><div class="body">Water the plants.</div></div></div></section></section><section class="zone zone-center" data-zone="center"><blockquote class="hero-quote" role="doc-pullquote"><p>Attention is the scarcest resource. Protect it before it is gone.</p></blockquote><blockquote class="hero-quote" role="doc-pullquote"><p>Attention is the scarcest resource. Protect it before it is gone.</p></blockquote></section></div>
+    <div class="chrome-zone" data-nocturne-chrome="true" data-page-id="abc123xyz"><button type="button" class="chrome-btn" data-action="export-pdf" aria-haspopup="dialog">Export as PDF</button><div class="rate-group" role="group" aria-label="Rate this page"><button type="button" class="chrome-btn" data-action="rate" data-rating="up" aria-label="Rate up"><span aria-hidden="true">▲</span> Good</button><button type="button" class="chrome-btn" data-action="rate" data-rating="down" aria-label="Rate down"><span aria-hidden="true">▼</span> Bad</button></div><button type="button" class="chrome-btn" data-action="copy-permalink">Copy permalink</button><div class="spacer"></div><div class="export-pdf-popover" data-nocturne-popover="export-pdf" role="dialog" hidden="">Use “Save as PDF” in your browser’s print dialog.</div></div>
+    <footer class="provenance-strip" aria-label="Page metadata"><span class="issue">Issue #42</span><span class="sep" aria-hidden="true">·</span><span class="date">2026-04-17</span><span class="sep" aria-hidden="true">·</span><span class="model">claude-opus-4.7</span><span class="sep" aria-hidden="true">·</span><span class="wordmark">NOCTURNE</span></footer>
+  </div>
+  <script>
+(function () {
+  var root = document.querySelector('[data-nocturne-chrome]');
+  if (!root) return;
+  var pageId = root.getAttribute('data-page-id') || '';
+  var popover = root.querySelector('[data-nocturne-popover="export-pdf"]');
+  var exportBtn = root.querySelector('[data-action="export-pdf"]');
+  var rateBtns = root.querySelectorAll('[data-action="rate"]');
+  var copyBtn = root.querySelector('[data-action="copy-permalink"]');
+  var popoverJustOpened = false;
+
+  function openPopover() {
+    if (!popover) return;
+    popover.hidden = false;
+    popoverJustOpened = true;
+    setTimeout(function () { popoverJustOpened = false; }, 0);
+  }
+  function closePopover() {
+    if (popover) popover.hidden = true;
+  }
+
+  if (exportBtn) {
+    exportBtn.addEventListener('click', function () {
+      openPopover();
+      try { window.print(); } catch (e) {}
+    });
+  }
+
+  document.addEventListener('click', function (e) {
+    if (popoverJustOpened) return;
+    if (popover && popover.contains(e.target)) return;
+    closePopover();
+  });
+
+  rateBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var rating = btn.getAttribute('data-rating');
+      if (!pageId || !rating) return;
+      var prev = btn.getAttribute('aria-pressed');
+      btn.setAttribute('aria-pressed', 'true');
+      fetch('/v/' + encodeURIComponent(pageId) + '/rate', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ rating: rating })
+      }).catch(function () {
+        btn.setAttribute('aria-pressed', prev || 'false');
+        btn.setAttribute('title', 'Rate failed \\u2014 try again');
+      });
+    });
+  });
+
+  if (copyBtn && navigator.clipboard) {
+    copyBtn.addEventListener('click', function () {
+      navigator.clipboard.writeText(location.href).then(function () {
+        copyBtn.setAttribute('title', 'Copied');
+      }).catch(function () {
+        copyBtn.setAttribute('title', 'Copy failed');
+      });
+    });
+  }
+})();
+</script>
+</body>
+</html>"
+`;
+
+exports[`renderPage — all specs snapshot: quiet-ledger × full daily_brief_v1 fixture: render-quiet-ledger 1`] = `
+"<!doctype html>
+<html lang="en" dir="ltr" class="writing-mode-horizontal-lr" data-writing-mode="horizontal-lr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="generator" content="Nocturne" />
+  <meta name="nocturne:spec" content="quiet-ledger" />
+  <title>A Thursday in mid-April</title>
+  <style data-nocturne="tokens">:root {
+  --bg: #faf6ea;
+  --fg: #272018;
+  --muted: #6b6052;
+  --hairline: #272018;
+  --font-headline: 'Lyon Text', 'Literata', Georgia, serif;
+  --font-body: 'Lyon Text', 'Literata', Georgia, serif;
+  --font-label: 'IBM Plex Mono', 'Courier Prime', monospace;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --space-base: 4px;
+  --column-gap: 0px;
+  --column-count-desktop: 1;
+  --max-width: 620px;
+  --writing-mode: horizontal-lr;
+}</style>
+  <style data-nocturne="base">/*
+ * Nocturne — base stylesheet (issue #5).
+ *
+ * This is the ONLY stylesheet that every spec consumes unconditionally.
+ * It is a token-driven reset + typography skeleton: each rule reads from
+ * CSS custom properties that the renderer inlines on \`:root\` from the
+ * active AestheticSpec. There is no spec-specific CSS in this file —
+ * DESIGN.md forbids a shared "house style" beyond structural glue.
+ *
+ * Tokens consumed (all inlined by \`renderPage\`):
+ *   --bg, --fg, --muted, --accent, --hairline
+ *   --font-headline, --font-body, --font-label, --font-mono
+ *   --space-base, --column-gap, --column-count-desktop, --max-width
+ *   --severity-high, --severity-med, --severity-low  (only when severity_style="colored-dot")
+ *
+ * Anything that looks aesthetic here (sizes, weights) is either structural
+ * (e.g. a 1em leading baseline) or a *default* that a per-spec stylesheet
+ * is free to override. Per DESIGN.md, per-spec CSS files are intentionally
+ * NOT shipped in v0 — we see how far token-driven + base.css carries us.
+ */
+
+/* ---------- Reset (modern normalize, trimmed) ----------- */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, h1, h2, h3, h4, h5, h6, p, figure, blockquote, dl, dd, ol, ul {
+  margin: 0;
+}
+
+ol, ul { padding: 0; list-style: none; }
+
+img, picture, svg { max-width: 100%; display: block; }
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+a { color: inherit; text-decoration: underline; text-underline-offset: 0.15em; }
+a:hover { text-decoration-thickness: 2px; }
+
+/* ---------- Page skeleton (token-driven) ---------- */
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  writing-mode: var(--writing-mode, horizontal-tb);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.55;
+  font-kerning: normal;
+  font-variant-numeric: oldstyle-nums proportional-nums;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  padding: calc(var(--space-base) * 6);
+}
+
+.page {
+  max-width: var(--max-width);
+  margin: 0 auto;
+}
+
+/* ---------- Typography defaults ---------- */
+
+h1, h2, h3 {
+  font-family: var(--font-headline);
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--fg);
+}
+
+h1 { font-size: clamp(2rem, 3.5vw, 3.25rem); letter-spacing: -0.01em; }
+h2 { font-size: 1.5rem; margin-top: calc(var(--space-base) * 6); }
+h3 { font-size: 1.125rem; margin-top: calc(var(--space-base) * 4); }
+
+p + p { margin-top: calc(var(--space-base) * 3); }
+
+.label,
+.block-label,
+.provenance-strip,
+.chrome-btn {
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mono, time, .numeric { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+blockquote, .hero-quote, .pull-quote {
+  font-family: var(--font-headline);
+  font-size: 1.5rem;
+  line-height: 1.3;
+  font-style: italic;
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+  padding: calc(var(--space-base) * 4) 0;
+  margin: calc(var(--space-base) * 6) 0;
+}
+
+/* ---------- Layout zones ---------- */
+/*
+ * The renderer drops a \`.layout layout-zones-<N>\` wrapper where N = number
+ * of zones in spec.block_zones. Concrete visual layout per-zone-count is
+ * defined below — each spec gets whatever zone count its JSON declares.
+ */
+.layout {
+  display: grid;
+  gap: var(--column-gap);
+  grid-template-columns: 1fr;
+}
+
+/* 3-zone specs (executive-broadsheet: left / center / right).
+   Center is the narrative spine, left / right flank it. */
+.layout-zones-3 {
+  grid-template-columns: 1.05fr 1.3fr 1fr;
+  grid-template-areas: "left center right";
+}
+.layout-zones-3 > .zone-left   { grid-area: left; }
+.layout-zones-3 > .zone-right  { grid-area: right; }
+.layout-zones-3 > .zone-center { grid-area: center; order: 0; }
+
+/* 1-zone specs (quiet-ledger single column). */
+.layout-zones-1 { max-width: var(--max-width); }
+
+/* guji-classical has 3 zones too (main / aside / epigraph) but wants
+   vertical flow — for vertical-rl writing mode, grid auto-flips. */
+.layout :where(.zone-main, .zone-aside, .zone-epigraph) { min-width: 0; }
+.layout-zones-3 > .zone-main     { grid-area: left; }
+.layout-zones-3 > .zone-aside    { grid-area: right; }
+.layout-zones-3 > .zone-epigraph { grid-area: center; }
+
+.zone {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-base) * 5);
+  min-width: 0;
+}
+
+/* ---------- Masthead (spec-agnostic but token-styled) ---------- */
+
+.masthead {
+  border-bottom: 2px solid var(--hairline);
+  padding-bottom: calc(var(--space-base) * 3);
+  margin-bottom: calc(var(--space-base) * 6);
+}
+.masthead .date-label {
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: calc(var(--space-base) * 1);
+}
+.masthead .dek {
+  font-family: var(--font-body);
+  font-size: 1.125rem;
+  font-style: italic;
+  color: var(--muted);
+  margin-top: calc(var(--space-base) * 2);
+  max-width: 60ch;
+}
+
+/* ---------- Block: priorities ---------- */
+
+.priority-list { display: flex; flex-direction: column; gap: calc(var(--space-base) * 5); }
+
+.priority-item {
+  border-top: 1px solid var(--hairline);
+  padding-top: calc(var(--space-base) * 3);
+}
+.priority-item .num {
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+}
+.priority-item .title {
+  font-family: var(--font-headline);
+  font-size: 1.25rem;
+  line-height: 1.25;
+  margin-top: calc(var(--space-base) * 1);
+}
+.priority-item .why {
+  color: var(--muted);
+  font-size: 0.95rem;
+  margin-top: calc(var(--space-base) * 2);
+}
+.priority-item .action {
+  font-family: var(--font-label);
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-top: calc(var(--space-base) * 2);
+}
+
+.priority-item.is-hero .title {
+  font-size: 1.75rem;
+  line-height: 1.2;
+}
+.priority-item.is-hero {
+  border-top-width: 3px;
+}
+
+.overflow-coda {
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: calc(var(--space-base) * 2);
+}
+
+.empty-fallback {
+  font-family: var(--font-body);
+  font-style: italic;
+  color: var(--muted);
+  margin-top: calc(var(--space-base) * 2);
+}
+
+/* ---------- Block: timeline ---------- */
+
+.timeline { display: grid; grid-template-columns: auto 1fr; gap: calc(var(--space-base) * 2) calc(var(--space-base) * 4); }
+.timeline .time {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.timeline .item { font-size: 0.95rem; }
+
+/* ---------- Block: watchlist ---------- */
+
+.watchlist { display: flex; flex-direction: column; gap: calc(var(--space-base) * 2); }
+.watchlist-item { display: flex; align-items: baseline; gap: calc(var(--space-base) * 2); }
+.watchlist-item .label { flex: 0 0 auto; }
+.watchlist-item .note { color: var(--muted); font-size: 0.9rem; }
+
+/* severity_style: colored-dot */
+.sev-dot {
+  display: inline-block;
+  width: 0.65em;
+  height: 0.65em;
+  border-radius: 50%;
+  vertical-align: middle;
+  margin-right: 0.3em;
+}
+.sev-dot.sev-high { background: var(--severity-high, var(--accent)); }
+.sev-dot.sev-med  { background: var(--severity-med, var(--muted)); }
+.sev-dot.sev-low  { background: var(--severity-low, var(--hairline)); }
+
+/* severity_style: bracketed-text */
+.sev-bracket {
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+  margin-right: 0.3em;
+}
+
+/* severity_style: traditional-mark */
+.sev-mark {
+  font-family: var(--font-body);
+  font-size: 1em;
+  margin-right: 0.3em;
+  color: var(--accent, var(--fg));
+}
+
+/* ---------- Block: notes ---------- */
+
+.notes { display: flex; flex-direction: column; gap: calc(var(--space-base) * 4); }
+.notes-item .heading {
+  font-family: var(--font-label);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: calc(var(--space-base) * 1);
+}
+.notes-item .body { font-size: 0.95rem; }
+
+/* ---------- Block: summary ---------- */
+
+.summary {
+  font-size: 1.05rem;
+  max-width: 60ch;
+}
+
+/* ---------- Chrome zone ---------- */
+
+.chrome-zone {
+  position: relative;
+  border-top: 1px solid var(--hairline);
+  margin-top: calc(var(--space-base) * 12);
+  padding: calc(var(--space-base) * 4) 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--space-base) * 4);
+  align-items: center;
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.chrome-zone .chrome-btn {
+  border: 1px solid var(--hairline);
+  padding: calc(var(--space-base) * 2) calc(var(--space-base) * 3);
+  color: var(--fg);
+  background: transparent;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+}
+.chrome-zone .chrome-btn:hover { background: var(--fg); color: var(--bg); }
+.chrome-zone .chrome-btn[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.chrome-zone .rate-group { display: inline-flex; gap: calc(var(--space-base) * 1); }
+.chrome-zone .spacer { flex: 1 1 auto; }
+
+.export-pdf-popover {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: calc(var(--space-base) * 2);
+  padding: calc(var(--space-base) * 3) calc(var(--space-base) * 4);
+  background: var(--fg);
+  color: var(--bg);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  letter-spacing: normal;
+  text-transform: none;
+  max-width: 36ch;
+  z-index: 10;
+}
+
+/* ---------- Provenance strip ---------- */
+
+.provenance-strip {
+  margin-top: calc(var(--space-base) * 6);
+  padding-top: calc(var(--space-base) * 3);
+  border-top: 1px solid var(--hairline);
+  color: var(--muted);
+  font-family: var(--font-label);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--space-base) * 3);
+}
+.provenance-strip .sep { color: var(--hairline); }
+.provenance-strip .wordmark { color: var(--fg); font-weight: 600; letter-spacing: 0.2em; }
+
+/* ---------- Vertical writing mode (guji-classical) ---------- */
+
+.writing-mode-vertical-rl {
+  writing-mode: vertical-rl;
+  -webkit-writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+.writing-mode-vertical-rl body {
+  min-height: 100vh;
+}
+.writing-mode-vertical-rl .layout {
+  grid-auto-flow: column;
+  grid-template-columns: none;
+  grid-auto-columns: minmax(14em, 1fr);
+  min-height: 80vh;
+}
+
+/* ---------- Responsive collapse ---------- */
+
+@media (max-width: 900px) {
+  .layout-zones-3 {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "center"
+      "left"
+      "right";
+  }
+  body { padding: calc(var(--space-base) * 4); }
+}
+
+@media (max-width: 768px) {
+  .writing-mode-vertical-rl {
+    writing-mode: horizontal-tb;
+    -webkit-writing-mode: horizontal-tb;
+    text-orientation: unset;
+  }
+  .writing-mode-vertical-rl .layout {
+    grid-auto-flow: row;
+    grid-template-columns: 1fr;
+    grid-auto-columns: auto;
+    min-height: auto;
+  }
+}
+</style>
+  <style data-nocturne="print">/*
+ * Nocturne — print stylesheet (issue #9, Part 2).
+ *
+ * Scope:
+ *   - @media print rules only. Screen styles live in per-spec CSS.
+ *   - Handles the cross-cutting print contract: what is hidden, what is
+ *     preserved, and what page geometry each spec gets.
+ *
+ * Per-spec tokens (paper / orientation / margin) are applied via classes that
+ * the renderer drops on <body>: \`.spec-executive-broadsheet\`,
+ * \`.spec-quiet-ledger\`, \`.spec-guji-classical\`. Values match each spec JSON's
+ * \`print\` block in DESIGN.md.
+ *
+ * This file intentionally reads no external CSS custom properties at the
+ * @page level — browsers do not let @page rules read vars from arbitrary
+ * elements. Values are inlined per spec class instead.
+ */
+
+/* ---------------------------------------------------------------------- */
+/* Default page geometry: executive-broadsheet (the default when in doubt) */
+/* ---------------------------------------------------------------------- */
+@page {
+  size: A4 portrait;
+  margin: 18mm;
+}
+
+@media print {
+  /* Hide the chrome zone (Export-as-PDF button, rating widgets, copy-link,
+   * any inline popovers). These never belong on paper. */
+  .chrome-zone,
+  .chrome-zone * {
+    display: none !important;
+  }
+
+  /* The provenance strip — "Issue #<N> · <date> · <model> · NOCTURNE" — must
+   * survive printing. It is the page's archival metadata. */
+  .provenance-strip {
+    display: block !important;
+    break-inside: avoid;
+  }
+
+  /* Sensible defaults every spec inherits unless it overrides. */
+  html, body {
+    background: #ffffff !important; /* printers don't need the tinted ground */
+    color: #000000;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Keep the tinted paper colors when the spec class opts in. Each spec
+   * re-asserts its own bg so we don't lose the aesthetic. */
+  .spec-executive-broadsheet { background: #f7f1df !important; color: #1f1913; }
+  .spec-quiet-ledger         { background: #faf6ea !important; color: #272018; }
+  .spec-guji-classical       { background: #f3e7c8 !important; color: #1c1508; }
+
+  /* Break behavior: headlines and quote blocks stay with their context. */
+  h1, h2, h3 { break-after: avoid-page; }
+  blockquote, .hero-quote, .pull-quote { break-inside: avoid-page; }
+
+  /* Links shouldn't inflate the page with (url) annotations. */
+  a[href]::after { content: ""; }
+}
+
+/* ---------------------------------------------------------------------- */
+/* Per-spec @page overrides                                               */
+/*                                                                        */
+/* Browsers apply the @page rule matched to the printing document. We use */
+/* named page selectors bound to the spec class via \`page: <name>\` on the */
+/* body. This is the portable way to get per-spec margins + orientation.  */
+/* ---------------------------------------------------------------------- */
+
+/* executive-broadsheet: A4 portrait, 18mm (matches the default above, but
+ * we name it explicitly so a future spec change doesn't silently inherit). */
+@page executive-broadsheet {
+  size: A4 portrait;
+  margin: 18mm;
+}
+.spec-executive-broadsheet { page: executive-broadsheet; }
+
+/* quiet-ledger: A4 or A5 portrait, 22mm. We pick A4 as the print default;
+ * A5 is only reachable via an explicit \`@media print and (...)\` block below
+ * when the renderer eventually lets the user choose. */
+@page quiet-ledger {
+  size: A4 portrait;
+  margin: 22mm;
+}
+.spec-quiet-ledger { page: quiet-ledger; }
+
+/* guji-classical: vertical-rl writing mode, A4 LANDSCAPE, 14mm margin, and
+ * the CJK-vertical printing expectation from the spec JSON.
+ *
+ * This is scaffolded NOW so the contract is committed before the renderer
+ * for guji-classical exists (per issue #9 direction). The actual renderer
+ * work lands with issue #5; this stylesheet will already match.
+ */
+@page guji-classical {
+  size: A4 landscape;
+  margin: 14mm;
+}
+.spec-guji-classical {
+  page: guji-classical;
+}
+
+@media print {
+  .spec-guji-classical {
+    /* Vertical writing mode must hold through print; browsers are
+     * famously inconsistent here, which is one reason Vivliostyle is the
+     * chosen PDF engine instead of \`window.print()\` for this spec. */
+    writing-mode: vertical-rl;
+    -webkit-writing-mode: vertical-rl;
+    text-orientation: mixed;
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+/* Export-as-PDF client UX — printing must not leak the popover            */
+/* ---------------------------------------------------------------------- */
+@media print {
+  /* The "Use 'Save as PDF' in your browser's print dialog" popover that
+   * issue #5's chrome-zone component will attach. Hidden defensively even
+   * though .chrome-zone is already display:none — the popover may render
+   * in a portal outside the chrome zone. */
+  .export-pdf-popover,
+  [data-nocturne-popover="export-pdf"] {
+    display: none !important;
+  }
+}
+</style>
+</head>
+<body class="writing-mode-horizontal-lr spec-quiet-ledger">
+  <div class="page">
+    <header class="masthead"><div class="date-label">2026-04-17</div><h1 class="title">A Thursday in mid-April</h1><p class="dek">Three decisions before noon and one long afternoon.</p></header>
+    <div class="layout layout-zones-1"><section class="zone zone-single" data-zone="single"><blockquote class="pull-quote pull-quote--coda" role="doc-pullquote"><p>Attention is the scarcest resource. Protect it before it is gone.</p></blockquote><section class="summary"><p>Two priorities are load-bearing and one is optional. The afternoon is reserved for deep work on the renderer; evening is a reading block.</p></section><section class="priority-list-section"><h2 class="block-label">Top Priorities</h2><ol class="priority-list"><li class="priority-item"><div class="num">01</div><div class="title">Ship the renderer PR</div><div class="why">Blocks issues #7 and #8 from landing.</div><div class="action">Open PR; request Eanz to review.</div></li><li class="priority-item"><div class="num">02</div><div class="title">Call Mom</div><div class="why">Been a week.</div><div class="action">Before 8pm.</div></li><li class="priority-item"><div class="num">03</div><div class="title">Run errands</div><div class="why">Groceries running low.</div></li></ol></section><section class="timeline-section"><h2 class="block-label">Timeline</h2><div class="timeline"><div class="time">09:00</div><div class="item">Standup — ship rate for the week</div><div class="time">11:30</div><div class="item">Lunch with Kai</div><div class="time">14:00</div><div class="item">Deep work: renderer pass</div><div class="time">18:00</div><div class="item">Close laptop, reading block</div></div></section><section class="watchlist-section"><h2 class="block-label">Watchlist</h2><ul class="watchlist"><li class="watchlist-item"><span class="sev-bracket" aria-label="med">[MED]</span><span class="label">CI flakiness</span><span class="note">— e2e flake last night, keep an eye on tomorrow morning.</span></li><li class="watchlist-item"><span class="sev-bracket" aria-label="high">[HIGH]</span><span class="label">Supabase rate-limit budget</span><span class="note">— at 70% — will trip next week at current pace.</span></li><li class="watchlist-item"><span class="sev-bracket" aria-label="low">[LOW]</span><span class="label">Disk space on box-01</span></li></ul></section><section class="notes-section"><h2 class="block-label">Notes</h2><div class="notes"><div class="notes-item"><div class="heading">Idea</div><div class="body">Add a mobile-fallback media query for guji-classical that flips writing-mode horizontally under 768px.</div></div><div class="notes-item"><div class="body">Water the plants.</div></div></div></section><blockquote class="pull-quote pull-quote--coda" role="doc-pullquote"><p>Attention is the scarcest resource. Protect it before it is gone.</p></blockquote></section></div>
+    <div class="chrome-zone" data-nocturne-chrome="true" data-page-id="abc123xyz"><button type="button" class="chrome-btn" data-action="export-pdf" aria-haspopup="dialog">Export as PDF</button><div class="rate-group" role="group" aria-label="Rate this page"><button type="button" class="chrome-btn" data-action="rate" data-rating="up" aria-label="Rate up"><span aria-hidden="true">▲</span> Good</button><button type="button" class="chrome-btn" data-action="rate" data-rating="down" aria-label="Rate down"><span aria-hidden="true">▼</span> Bad</button></div><button type="button" class="chrome-btn" data-action="copy-permalink">Copy permalink</button><div class="spacer"></div><div class="export-pdf-popover" data-nocturne-popover="export-pdf" role="dialog" hidden="">Use “Save as PDF” in your browser’s print dialog.</div></div>
+    <footer class="provenance-strip" aria-label="Page metadata"><span class="issue">Issue #42</span><span class="sep" aria-hidden="true">·</span><span class="date">2026-04-17</span><span class="sep" aria-hidden="true">·</span><span class="model">claude-opus-4.7</span><span class="sep" aria-hidden="true">·</span><span class="wordmark">NOCTURNE</span></footer>
+  </div>
+  <script>
+(function () {
+  var root = document.querySelector('[data-nocturne-chrome]');
+  if (!root) return;
+  var pageId = root.getAttribute('data-page-id') || '';
+  var popover = root.querySelector('[data-nocturne-popover="export-pdf"]');
+  var exportBtn = root.querySelector('[data-action="export-pdf"]');
+  var rateBtns = root.querySelectorAll('[data-action="rate"]');
+  var copyBtn = root.querySelector('[data-action="copy-permalink"]');
+  var popoverJustOpened = false;
+
+  function openPopover() {
+    if (!popover) return;
+    popover.hidden = false;
+    popoverJustOpened = true;
+    setTimeout(function () { popoverJustOpened = false; }, 0);
+  }
+  function closePopover() {
+    if (popover) popover.hidden = true;
+  }
+
+  if (exportBtn) {
+    exportBtn.addEventListener('click', function () {
+      openPopover();
+      try { window.print(); } catch (e) {}
+    });
+  }
+
+  document.addEventListener('click', function (e) {
+    if (popoverJustOpened) return;
+    if (popover && popover.contains(e.target)) return;
+    closePopover();
+  });
+
+  rateBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var rating = btn.getAttribute('data-rating');
+      if (!pageId || !rating) return;
+      var prev = btn.getAttribute('aria-pressed');
+      btn.setAttribute('aria-pressed', 'true');
+      fetch('/v/' + encodeURIComponent(pageId) + '/rate', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ rating: rating })
+      }).catch(function () {
+        btn.setAttribute('aria-pressed', prev || 'false');
+        btn.setAttribute('title', 'Rate failed \\u2014 try again');
+      });
+    });
+  });
+
+  if (copyBtn && navigator.clipboard) {
+    copyBtn.addEventListener('click', function () {
+      navigator.clipboard.writeText(location.href).then(function () {
+        copyBtn.setAttribute('title', 'Copied');
+      }).catch(function () {
+        copyBtn.setAttribute('title', 'Copy failed');
+      });
+    });
+  }
+})();
+</script>
+</body>
+</html>"
+`;
+
+exports[`renderPage — all specs snapshot: guji-classical × full daily_brief_v1 fixture: render-guji-classical 1`] = `
+"<!doctype html>
+<html lang="zh-Hans" dir="ltr" class="writing-mode-vertical-rl" data-writing-mode="vertical-rl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="generator" content="Nocturne" />
+  <meta name="nocturne:spec" content="guji-classical" />
+  <title>A Thursday in mid-April</title>
+  <style data-nocturne="tokens">:root {
+  --bg: #f3e7c8;
+  --fg: #1c1508;
+  --muted: #6b5a3a;
+  --accent: #9f2020;
+  --hairline: #1c1508;
+  --font-headline: 'FangZheng Shu Song', 'Noto Serif CJK SC', serif;
+  --font-body: 'Noto Serif CJK SC', 'Source Han Serif SC', serif;
+  --font-label: 'Noto Serif CJK SC', serif;
+  --font-mono: 'Noto Sans Mono CJK SC', monospace;
+  --space-base: 4px;
+  --column-gap: 24px;
+  --column-count-desktop: 5;
+  --max-width: 1200px;
+  --writing-mode: vertical-rl;
+}</style>
+  <style data-nocturne="base">/*
+ * Nocturne — base stylesheet (issue #5).
+ *
+ * This is the ONLY stylesheet that every spec consumes unconditionally.
+ * It is a token-driven reset + typography skeleton: each rule reads from
+ * CSS custom properties that the renderer inlines on \`:root\` from the
+ * active AestheticSpec. There is no spec-specific CSS in this file —
+ * DESIGN.md forbids a shared "house style" beyond structural glue.
+ *
+ * Tokens consumed (all inlined by \`renderPage\`):
+ *   --bg, --fg, --muted, --accent, --hairline
+ *   --font-headline, --font-body, --font-label, --font-mono
+ *   --space-base, --column-gap, --column-count-desktop, --max-width
+ *   --severity-high, --severity-med, --severity-low  (only when severity_style="colored-dot")
+ *
+ * Anything that looks aesthetic here (sizes, weights) is either structural
+ * (e.g. a 1em leading baseline) or a *default* that a per-spec stylesheet
+ * is free to override. Per DESIGN.md, per-spec CSS files are intentionally
+ * NOT shipped in v0 — we see how far token-driven + base.css carries us.
+ */
+
+/* ---------- Reset (modern normalize, trimmed) ----------- */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, h1, h2, h3, h4, h5, h6, p, figure, blockquote, dl, dd, ol, ul {
+  margin: 0;
+}
+
+ol, ul { padding: 0; list-style: none; }
+
+img, picture, svg { max-width: 100%; display: block; }
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+a { color: inherit; text-decoration: underline; text-underline-offset: 0.15em; }
+a:hover { text-decoration-thickness: 2px; }
+
+/* ---------- Page skeleton (token-driven) ---------- */
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  writing-mode: var(--writing-mode, horizontal-tb);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.55;
+  font-kerning: normal;
+  font-variant-numeric: oldstyle-nums proportional-nums;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  padding: calc(var(--space-base) * 6);
+}
+
+.page {
+  max-width: var(--max-width);
+  margin: 0 auto;
+}
+
+/* ---------- Typography defaults ---------- */
+
+h1, h2, h3 {
+  font-family: var(--font-headline);
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--fg);
+}
+
+h1 { font-size: clamp(2rem, 3.5vw, 3.25rem); letter-spacing: -0.01em; }
+h2 { font-size: 1.5rem; margin-top: calc(var(--space-base) * 6); }
+h3 { font-size: 1.125rem; margin-top: calc(var(--space-base) * 4); }
+
+p + p { margin-top: calc(var(--space-base) * 3); }
+
+.label,
+.block-label,
+.provenance-strip,
+.chrome-btn {
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mono, time, .numeric { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+blockquote, .hero-quote, .pull-quote {
+  font-family: var(--font-headline);
+  font-size: 1.5rem;
+  line-height: 1.3;
+  font-style: italic;
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+  padding: calc(var(--space-base) * 4) 0;
+  margin: calc(var(--space-base) * 6) 0;
+}
+
+/* ---------- Layout zones ---------- */
+/*
+ * The renderer drops a \`.layout layout-zones-<N>\` wrapper where N = number
+ * of zones in spec.block_zones. Concrete visual layout per-zone-count is
+ * defined below — each spec gets whatever zone count its JSON declares.
+ */
+.layout {
+  display: grid;
+  gap: var(--column-gap);
+  grid-template-columns: 1fr;
+}
+
+/* 3-zone specs (executive-broadsheet: left / center / right).
+   Center is the narrative spine, left / right flank it. */
+.layout-zones-3 {
+  grid-template-columns: 1.05fr 1.3fr 1fr;
+  grid-template-areas: "left center right";
+}
+.layout-zones-3 > .zone-left   { grid-area: left; }
+.layout-zones-3 > .zone-right  { grid-area: right; }
+.layout-zones-3 > .zone-center { grid-area: center; order: 0; }
+
+/* 1-zone specs (quiet-ledger single column). */
+.layout-zones-1 { max-width: var(--max-width); }
+
+/* guji-classical has 3 zones too (main / aside / epigraph) but wants
+   vertical flow — for vertical-rl writing mode, grid auto-flips. */
+.layout :where(.zone-main, .zone-aside, .zone-epigraph) { min-width: 0; }
+.layout-zones-3 > .zone-main     { grid-area: left; }
+.layout-zones-3 > .zone-aside    { grid-area: right; }
+.layout-zones-3 > .zone-epigraph { grid-area: center; }
+
+.zone {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-base) * 5);
+  min-width: 0;
+}
+
+/* ---------- Masthead (spec-agnostic but token-styled) ---------- */
+
+.masthead {
+  border-bottom: 2px solid var(--hairline);
+  padding-bottom: calc(var(--space-base) * 3);
+  margin-bottom: calc(var(--space-base) * 6);
+}
+.masthead .date-label {
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: calc(var(--space-base) * 1);
+}
+.masthead .dek {
+  font-family: var(--font-body);
+  font-size: 1.125rem;
+  font-style: italic;
+  color: var(--muted);
+  margin-top: calc(var(--space-base) * 2);
+  max-width: 60ch;
+}
+
+/* ---------- Block: priorities ---------- */
+
+.priority-list { display: flex; flex-direction: column; gap: calc(var(--space-base) * 5); }
+
+.priority-item {
+  border-top: 1px solid var(--hairline);
+  padding-top: calc(var(--space-base) * 3);
+}
+.priority-item .num {
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+}
+.priority-item .title {
+  font-family: var(--font-headline);
+  font-size: 1.25rem;
+  line-height: 1.25;
+  margin-top: calc(var(--space-base) * 1);
+}
+.priority-item .why {
+  color: var(--muted);
+  font-size: 0.95rem;
+  margin-top: calc(var(--space-base) * 2);
+}
+.priority-item .action {
+  font-family: var(--font-label);
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-top: calc(var(--space-base) * 2);
+}
+
+.priority-item.is-hero .title {
+  font-size: 1.75rem;
+  line-height: 1.2;
+}
+.priority-item.is-hero {
+  border-top-width: 3px;
+}
+
+.overflow-coda {
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: calc(var(--space-base) * 2);
+}
+
+.empty-fallback {
+  font-family: var(--font-body);
+  font-style: italic;
+  color: var(--muted);
+  margin-top: calc(var(--space-base) * 2);
+}
+
+/* ---------- Block: timeline ---------- */
+
+.timeline { display: grid; grid-template-columns: auto 1fr; gap: calc(var(--space-base) * 2) calc(var(--space-base) * 4); }
+.timeline .time {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.timeline .item { font-size: 0.95rem; }
+
+/* ---------- Block: watchlist ---------- */
+
+.watchlist { display: flex; flex-direction: column; gap: calc(var(--space-base) * 2); }
+.watchlist-item { display: flex; align-items: baseline; gap: calc(var(--space-base) * 2); }
+.watchlist-item .label { flex: 0 0 auto; }
+.watchlist-item .note { color: var(--muted); font-size: 0.9rem; }
+
+/* severity_style: colored-dot */
+.sev-dot {
+  display: inline-block;
+  width: 0.65em;
+  height: 0.65em;
+  border-radius: 50%;
+  vertical-align: middle;
+  margin-right: 0.3em;
+}
+.sev-dot.sev-high { background: var(--severity-high, var(--accent)); }
+.sev-dot.sev-med  { background: var(--severity-med, var(--muted)); }
+.sev-dot.sev-low  { background: var(--severity-low, var(--hairline)); }
+
+/* severity_style: bracketed-text */
+.sev-bracket {
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+  margin-right: 0.3em;
+}
+
+/* severity_style: traditional-mark */
+.sev-mark {
+  font-family: var(--font-body);
+  font-size: 1em;
+  margin-right: 0.3em;
+  color: var(--accent, var(--fg));
+}
+
+/* ---------- Block: notes ---------- */
+
+.notes { display: flex; flex-direction: column; gap: calc(var(--space-base) * 4); }
+.notes-item .heading {
+  font-family: var(--font-label);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: calc(var(--space-base) * 1);
+}
+.notes-item .body { font-size: 0.95rem; }
+
+/* ---------- Block: summary ---------- */
+
+.summary {
+  font-size: 1.05rem;
+  max-width: 60ch;
+}
+
+/* ---------- Chrome zone ---------- */
+
+.chrome-zone {
+  position: relative;
+  border-top: 1px solid var(--hairline);
+  margin-top: calc(var(--space-base) * 12);
+  padding: calc(var(--space-base) * 4) 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--space-base) * 4);
+  align-items: center;
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.chrome-zone .chrome-btn {
+  border: 1px solid var(--hairline);
+  padding: calc(var(--space-base) * 2) calc(var(--space-base) * 3);
+  color: var(--fg);
+  background: transparent;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+}
+.chrome-zone .chrome-btn:hover { background: var(--fg); color: var(--bg); }
+.chrome-zone .chrome-btn[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.chrome-zone .rate-group { display: inline-flex; gap: calc(var(--space-base) * 1); }
+.chrome-zone .spacer { flex: 1 1 auto; }
+
+.export-pdf-popover {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: calc(var(--space-base) * 2);
+  padding: calc(var(--space-base) * 3) calc(var(--space-base) * 4);
+  background: var(--fg);
+  color: var(--bg);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  letter-spacing: normal;
+  text-transform: none;
+  max-width: 36ch;
+  z-index: 10;
+}
+
+/* ---------- Provenance strip ---------- */
+
+.provenance-strip {
+  margin-top: calc(var(--space-base) * 6);
+  padding-top: calc(var(--space-base) * 3);
+  border-top: 1px solid var(--hairline);
+  color: var(--muted);
+  font-family: var(--font-label);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--space-base) * 3);
+}
+.provenance-strip .sep { color: var(--hairline); }
+.provenance-strip .wordmark { color: var(--fg); font-weight: 600; letter-spacing: 0.2em; }
+
+/* ---------- Vertical writing mode (guji-classical) ---------- */
+
+.writing-mode-vertical-rl {
+  writing-mode: vertical-rl;
+  -webkit-writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+.writing-mode-vertical-rl body {
+  min-height: 100vh;
+}
+.writing-mode-vertical-rl .layout {
+  grid-auto-flow: column;
+  grid-template-columns: none;
+  grid-auto-columns: minmax(14em, 1fr);
+  min-height: 80vh;
+}
+
+/* ---------- Responsive collapse ---------- */
+
+@media (max-width: 900px) {
+  .layout-zones-3 {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "center"
+      "left"
+      "right";
+  }
+  body { padding: calc(var(--space-base) * 4); }
+}
+
+@media (max-width: 768px) {
+  .writing-mode-vertical-rl {
+    writing-mode: horizontal-tb;
+    -webkit-writing-mode: horizontal-tb;
+    text-orientation: unset;
+  }
+  .writing-mode-vertical-rl .layout {
+    grid-auto-flow: row;
+    grid-template-columns: 1fr;
+    grid-auto-columns: auto;
+    min-height: auto;
+  }
+}
+</style>
+  <style data-nocturne="print">/*
+ * Nocturne — print stylesheet (issue #9, Part 2).
+ *
+ * Scope:
+ *   - @media print rules only. Screen styles live in per-spec CSS.
+ *   - Handles the cross-cutting print contract: what is hidden, what is
+ *     preserved, and what page geometry each spec gets.
+ *
+ * Per-spec tokens (paper / orientation / margin) are applied via classes that
+ * the renderer drops on <body>: \`.spec-executive-broadsheet\`,
+ * \`.spec-quiet-ledger\`, \`.spec-guji-classical\`. Values match each spec JSON's
+ * \`print\` block in DESIGN.md.
+ *
+ * This file intentionally reads no external CSS custom properties at the
+ * @page level — browsers do not let @page rules read vars from arbitrary
+ * elements. Values are inlined per spec class instead.
+ */
+
+/* ---------------------------------------------------------------------- */
+/* Default page geometry: executive-broadsheet (the default when in doubt) */
+/* ---------------------------------------------------------------------- */
+@page {
+  size: A4 portrait;
+  margin: 18mm;
+}
+
+@media print {
+  /* Hide the chrome zone (Export-as-PDF button, rating widgets, copy-link,
+   * any inline popovers). These never belong on paper. */
+  .chrome-zone,
+  .chrome-zone * {
+    display: none !important;
+  }
+
+  /* The provenance strip — "Issue #<N> · <date> · <model> · NOCTURNE" — must
+   * survive printing. It is the page's archival metadata. */
+  .provenance-strip {
+    display: block !important;
+    break-inside: avoid;
+  }
+
+  /* Sensible defaults every spec inherits unless it overrides. */
+  html, body {
+    background: #ffffff !important; /* printers don't need the tinted ground */
+    color: #000000;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Keep the tinted paper colors when the spec class opts in. Each spec
+   * re-asserts its own bg so we don't lose the aesthetic. */
+  .spec-executive-broadsheet { background: #f7f1df !important; color: #1f1913; }
+  .spec-quiet-ledger         { background: #faf6ea !important; color: #272018; }
+  .spec-guji-classical       { background: #f3e7c8 !important; color: #1c1508; }
+
+  /* Break behavior: headlines and quote blocks stay with their context. */
+  h1, h2, h3 { break-after: avoid-page; }
+  blockquote, .hero-quote, .pull-quote { break-inside: avoid-page; }
+
+  /* Links shouldn't inflate the page with (url) annotations. */
+  a[href]::after { content: ""; }
+}
+
+/* ---------------------------------------------------------------------- */
+/* Per-spec @page overrides                                               */
+/*                                                                        */
+/* Browsers apply the @page rule matched to the printing document. We use */
+/* named page selectors bound to the spec class via \`page: <name>\` on the */
+/* body. This is the portable way to get per-spec margins + orientation.  */
+/* ---------------------------------------------------------------------- */
+
+/* executive-broadsheet: A4 portrait, 18mm (matches the default above, but
+ * we name it explicitly so a future spec change doesn't silently inherit). */
+@page executive-broadsheet {
+  size: A4 portrait;
+  margin: 18mm;
+}
+.spec-executive-broadsheet { page: executive-broadsheet; }
+
+/* quiet-ledger: A4 or A5 portrait, 22mm. We pick A4 as the print default;
+ * A5 is only reachable via an explicit \`@media print and (...)\` block below
+ * when the renderer eventually lets the user choose. */
+@page quiet-ledger {
+  size: A4 portrait;
+  margin: 22mm;
+}
+.spec-quiet-ledger { page: quiet-ledger; }
+
+/* guji-classical: vertical-rl writing mode, A4 LANDSCAPE, 14mm margin, and
+ * the CJK-vertical printing expectation from the spec JSON.
+ *
+ * This is scaffolded NOW so the contract is committed before the renderer
+ * for guji-classical exists (per issue #9 direction). The actual renderer
+ * work lands with issue #5; this stylesheet will already match.
+ */
+@page guji-classical {
+  size: A4 landscape;
+  margin: 14mm;
+}
+.spec-guji-classical {
+  page: guji-classical;
+}
+
+@media print {
+  .spec-guji-classical {
+    /* Vertical writing mode must hold through print; browsers are
+     * famously inconsistent here, which is one reason Vivliostyle is the
+     * chosen PDF engine instead of \`window.print()\` for this spec. */
+    writing-mode: vertical-rl;
+    -webkit-writing-mode: vertical-rl;
+    text-orientation: mixed;
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+/* Export-as-PDF client UX — printing must not leak the popover            */
+/* ---------------------------------------------------------------------- */
+@media print {
+  /* The "Use 'Save as PDF' in your browser's print dialog" popover that
+   * issue #5's chrome-zone component will attach. Hidden defensively even
+   * though .chrome-zone is already display:none — the popover may render
+   * in a portal outside the chrome zone. */
+  .export-pdf-popover,
+  [data-nocturne-popover="export-pdf"] {
+    display: none !important;
+  }
+}
+</style>
+</head>
+<body class="writing-mode-vertical-rl spec-guji-classical">
+  <div class="page">
+    <header class="masthead"><div class="date-label">2026-04-17</div><h1 class="title">A Thursday in mid-April</h1><p class="dek">Three decisions before noon and one long afternoon.</p></header>
+    <div class="layout layout-zones-3"><section class="zone zone-main" data-zone="main"><blockquote class="pull-quote pull-quote--epigraph" role="doc-pullquote"><p>Attention is the scarcest resource. Protect it before it is gone.</p></blockquote><section class="priority-list-section"><h2 class="block-label">Top Priorities</h2><ol class="priority-list"><li class="priority-item is-hero"><div class="num">01</div><div class="title">Ship the renderer PR</div><div class="why">Blocks issues #7 and #8 from landing.</div><div class="action">Open PR; request Eanz to review.</div></li><li class="priority-item"><div class="num">02</div><div class="title">Call Mom</div><div class="why">Been a week.</div><div class="action">Before 8pm.</div></li><li class="priority-item"><div class="num">03</div><div class="title">Run errands</div><div class="why">Groceries running low.</div></li></ol></section></section><section class="zone zone-aside" data-zone="aside"><section class="timeline-section"><h2 class="block-label">Timeline</h2><div class="timeline"><div class="time">09:00</div><div class="item">Standup — ship rate for the week</div><div class="time">11:30</div><div class="item">Lunch with Kai</div><div class="time">14:00</div><div class="item">Deep work: renderer pass</div><div class="time">18:00</div><div class="item">Close laptop, reading block</div></div></section><section class="watchlist-section"><h2 class="block-label">Watchlist</h2><ul class="watchlist"><li class="watchlist-item"><span class="sev-mark" aria-label="med">○</span><span class="label">CI flakiness</span><span class="note">— e2e flake last night, keep an eye on tomorrow morning.</span></li><li class="watchlist-item"><span class="sev-mark" aria-label="high">●</span><span class="label">Supabase rate-limit budget</span><span class="note">— at 70% — will trip next week at current pace.</span></li><li class="watchlist-item"><span class="sev-mark" aria-label="low">＋</span><span class="label">Disk space on box-01</span></li></ul></section><section class="notes-section"><h2 class="block-label">Notes</h2><div class="notes"><div class="notes-item"><div class="heading">Idea</div><div class="body">Add a mobile-fallback media query for guji-classical that flips writing-mode horizontally under 768px.</div></div><div class="notes-item"><div class="body">Water the plants.</div></div></div></section></section><section class="zone zone-epigraph" data-zone="epigraph"><blockquote class="pull-quote pull-quote--epigraph" role="doc-pullquote"><p>Attention is the scarcest resource. Protect it before it is gone.</p></blockquote></section></div>
+    <div class="chrome-zone" data-nocturne-chrome="true" data-page-id="abc123xyz"><button type="button" class="chrome-btn" data-action="export-pdf" aria-haspopup="dialog">Export as PDF</button><div class="rate-group" role="group" aria-label="Rate this page"><button type="button" class="chrome-btn" data-action="rate" data-rating="up" aria-label="Rate up"><span aria-hidden="true">▲</span> Good</button><button type="button" class="chrome-btn" data-action="rate" data-rating="down" aria-label="Rate down"><span aria-hidden="true">▼</span> Bad</button></div><button type="button" class="chrome-btn" data-action="copy-permalink">Copy permalink</button><div class="spacer"></div><div class="export-pdf-popover" data-nocturne-popover="export-pdf" role="dialog" hidden="">Use “Save as PDF” in your browser’s print dialog.</div></div>
+    <footer class="provenance-strip" aria-label="Page metadata"><span class="issue">Issue #42</span><span class="sep" aria-hidden="true">·</span><span class="date">2026-04-17</span><span class="sep" aria-hidden="true">·</span><span class="model">claude-opus-4.7</span><span class="sep" aria-hidden="true">·</span><span class="wordmark">NOCTURNE</span></footer>
+  </div>
+  <script>
+(function () {
+  var root = document.querySelector('[data-nocturne-chrome]');
+  if (!root) return;
+  var pageId = root.getAttribute('data-page-id') || '';
+  var popover = root.querySelector('[data-nocturne-popover="export-pdf"]');
+  var exportBtn = root.querySelector('[data-action="export-pdf"]');
+  var rateBtns = root.querySelectorAll('[data-action="rate"]');
+  var copyBtn = root.querySelector('[data-action="copy-permalink"]');
+  var popoverJustOpened = false;
+
+  function openPopover() {
+    if (!popover) return;
+    popover.hidden = false;
+    popoverJustOpened = true;
+    setTimeout(function () { popoverJustOpened = false; }, 0);
+  }
+  function closePopover() {
+    if (popover) popover.hidden = true;
+  }
+
+  if (exportBtn) {
+    exportBtn.addEventListener('click', function () {
+      openPopover();
+      try { window.print(); } catch (e) {}
+    });
+  }
+
+  document.addEventListener('click', function (e) {
+    if (popoverJustOpened) return;
+    if (popover && popover.contains(e.target)) return;
+    closePopover();
+  });
+
+  rateBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var rating = btn.getAttribute('data-rating');
+      if (!pageId || !rating) return;
+      var prev = btn.getAttribute('aria-pressed');
+      btn.setAttribute('aria-pressed', 'true');
+      fetch('/v/' + encodeURIComponent(pageId) + '/rate', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ rating: rating })
+      }).catch(function () {
+        btn.setAttribute('aria-pressed', prev || 'false');
+        btn.setAttribute('title', 'Rate failed \\u2014 try again');
+      });
+    });
+  });
+
+  if (copyBtn && navigator.clipboard) {
+    copyBtn.addEventListener('click', function () {
+      navigator.clipboard.writeText(location.href).then(function () {
+        copyBtn.setAttribute('title', 'Copied');
+      }).catch(function () {
+        copyBtn.setAttribute('title', 'Copy failed');
+      });
+    });
+  }
+})();
+</script>
+</body>
+</html>"
+`;
