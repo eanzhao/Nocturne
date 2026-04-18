@@ -90,13 +90,16 @@ describe('renderPage — all specs', () => {
     'keynote-sheet',
   ] as const;
 
+  const REFERENCE_FULL_HTML_SPEC_ID = 'front-page-daily';
+
   for (const id of specIds) {
-    test(`snapshot: ${id} × full daily_brief_v1 fixture`, async () => {
+    test(`structural: ${id} × full daily_brief_v1 fixture`, async () => {
       const specs = await loadSpecs(SPECS_DIR);
       const spec = specs.get(id)!;
       const html = renderPage(buildBrief(id), spec, CTX);
 
-      // Structural assertions that won't churn on CSS edits.
+      // Structural assertions that every spec must honor, regardless
+      // of visual design. These are cheap and catch broken renders.
       expect(html.startsWith('<!doctype html>')).toBe(true);
       expect(html).toContain(`data-writing-mode="${spec.writing_mode}"`);
       expect(html).toContain(`spec-${id}`);
@@ -113,8 +116,13 @@ describe('renderPage — all specs', () => {
       expect(html).toContain('2026-04-17');
       expect(html).toContain('NOCTURNE');
       expect(html).toContain('window.print()');
-      // Auto-snapshot keyed by spec id.
-      expect(html).toMatchSnapshot(`render-${id}`);
+
+      // Keep a full-HTML snapshot ONLY for the reference spec. All
+      // others rely on structural assertions + their own per-spec
+      // behavior tests further down. This caps snap-file growth.
+      if (id === REFERENCE_FULL_HTML_SPEC_ID) {
+        expect(html).toMatchSnapshot(`render-${id}`);
+      }
     });
   }
 
