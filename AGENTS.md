@@ -62,28 +62,25 @@
 
 **当前倾向**：选 1。代码路径简单得多（Next.js / Bun Hono 一个 handler），并且未来如果要做"升级 CSS 就立刻应用于全部历史页"会感谢今天的自己。
 
-### 接口契约（拟定）
+### 接口契约（v0）
 
 ```
 POST /format                          (内网) 或 /api/v1/proxy/s/nocturne/format (经 NyxID)
 Headers: X-NyxID-User-Id: <uuid>      (由 NyxID 注入；直接内网调用时测试用)
 Body:
 {
-  "content": "...",              // 必填
-  "layout": { ... },             // 可选；给了就跳过 LLM 版面编辑
-  "theme": "classic|modern"
+  "content": "..."              // 必填
 }
 
 Response:
-{ "url": "https://nocturne.example.com/v/<page_id>", "expires_at": "..." }
+{ "url": "https://nocturne.example.com/v/<page_id>" }
 ```
 
-`/v/{page_id}` 做 SSR 或读 chrono-storage 现成 HTML。
+`/v/{page_id}` 做 SSR：从 Supabase 索引拿 `(user_id, page_id)` → 从 chrono-storage 拿 HTML → 响应。
 
-### 版面编辑（README 里的 A/B 问题）
+### 版面编辑
 
-- 不传 `layout` → Nocturne 通过 `X-NyxID-Delegation-Token` 回调 NyxID 的 LLM Gateway，拿结构化 JSON → 渲染 → 存 chrono-storage
-- 传了 `layout` → 跳过 LLM，直接渲染 + 存
+Nocturne 通过 `X-NyxID-Delegation-Token` 回调 NyxID 的 LLM Gateway，让 LLM 产出结构化 `DailyBrief` JSON（包括 `spec_id` 选型）→ `renderPage` 渲染 → 存 chrono-storage。
 
 LLM token 成本走用户自己的 NyxID 凭证，Nocturne 无需托管 API key。
 
@@ -100,11 +97,11 @@ LLM token 成本走用户自己的 NyxID 凭证，Nocturne 无需托管 API key�
        ▼
   Nocturne API
        │
-       ├── (可选) 调 NyxID LLM Gateway 做版面编辑
+       ├── 调 NyxID LLM Gateway 做版面编辑
        │
        ├── PUT 到 chrono-storage: nocturne/{user_id}/{page_id}.html
        │
-       └── 返回 { url: "/v/{page_id}", expires_at }
+       └── 返回 { url: "/v/{page_id}" }
 
  访客
        │

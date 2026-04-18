@@ -65,4 +65,24 @@ describe('loadSpecs', () => {
       expect(result.success).toBe(true);
     }
   });
+
+  test('unknown block_zones entry (typo) fails validation at load', async () => {
+    const original = JSON.parse(
+      await readFile(join(specsDir, 'executive-broadsheet.json'), 'utf8'),
+    );
+    // Typo: "priortities" instead of "top_priorities"
+    const corrupted = {
+      ...original,
+      block_zones: { ...original.block_zones, front: ['priortities'] },
+    };
+
+    const tmp = await mkdtemp(join(tmpdir(), 'nocturne-specs-'));
+    await writeFile(
+      join(tmp, 'executive-broadsheet.json'),
+      JSON.stringify(corrupted),
+      'utf8',
+    );
+
+    await expect(loadSpecs(tmp)).rejects.toThrow(/validation failed/);
+  });
 });

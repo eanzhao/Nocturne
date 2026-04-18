@@ -34,6 +34,8 @@ const ENV_DEFAULTS: Record<string, string> = {
   CHRONO_STORAGE_BUCKET: "nocturne",
   NYXID_BASE_URL: "https://nyx-test.invalid",
   NYXID_JWKS_URL: "https://nyx-test.invalid/.well-known/jwks.json",
+  NYXID_JWT_ISSUER: "https://nyx-test.invalid",
+  NYXID_JWT_AUDIENCE: "nocturne",
   NYXID_SERVICE_SECRET:
     "0123456789abcdef0123456789abcdef0123456789abcdef",
   PAGE_ID_BYTES: "15",
@@ -53,8 +55,8 @@ beforeAll(async () => {
 // ---------------------------------------------------------------------------
 // Fixtures
 
-const ISSUER = "https://nyx-test.invalid";
-const AUDIENCE = "nocturne";
+const ISSUER = process.env.NYXID_JWT_ISSUER ?? "https://nyx-test.invalid";
+const AUDIENCE = process.env.NYXID_JWT_AUDIENCE ?? "nocturne";
 const USER_ID = "11111111-2222-3333-4444-555555555555";
 
 interface Keypair {
@@ -80,12 +82,17 @@ function jwksOf(...pairs: Keypair[]): JSONWebKeySet {
 
 async function signToken(
   kp: Keypair,
-  opts: { sub?: string; expiresIn?: string } = {},
+  opts: {
+    sub?: string;
+    expiresIn?: string;
+    issuer?: string;
+    audience?: string;
+  } = {},
 ): Promise<string> {
   return new SignJWT({})
     .setProtectedHeader({ alg: "RS256", kid: kp.kid })
-    .setIssuer(ISSUER)
-    .setAudience(AUDIENCE)
+    .setIssuer(opts.issuer ?? ISSUER)
+    .setAudience(opts.audience ?? AUDIENCE)
     .setSubject(opts.sub ?? USER_ID)
     .setIssuedAt()
     .setExpirationTime(opts.expiresIn ?? "60s")
@@ -205,6 +212,48 @@ describe("nyxidAuth", () => {
     expect(await res.json()).toEqual({ error: "identity_mismatch" });
   });
 
+  test("wrong issuer returns 401 invalid_identity_token", async () => {
+    const kp = await makeKeypair("k1");
+    currentJwks = jwksOf(kp);
+    const token = await signToken(kp, {
+      sub: USER_ID,
+      issuer: "https://wrong-issuer.invalid",
+    });
+
+    const app = appWithAuth(authMod.nyxidAuth);
+    const res = await app.request(
+      authedReq({
+        "x-nyxid-user-id": USER_ID,
+        "x-nyxid-identity-token": token,
+      }),
+    );
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: "invalid_identity_token" });
+    expect(fetchCount).toBe(1);
+  });
+
+  test("wrong audience returns 401 invalid_identity_token", async () => {
+    const kp = await makeKeypair("k1");
+    currentJwks = jwksOf(kp);
+    const token = await signToken(kp, {
+      sub: USER_ID,
+      audience: "another-service",
+    });
+
+    const app = appWithAuth(authMod.nyxidAuth);
+    const res = await app.request(
+      authedReq({
+        "x-nyxid-user-id": USER_ID,
+        "x-nyxid-identity-token": token,
+      }),
+    );
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: "invalid_identity_token" });
+    expect(fetchCount).toBe(1);
+  });
+
   test("stale JWKS kid triggers one refresh + retry and passes", async () => {
     // Prime the cache with an old JWKS containing only `k-old`.
     const oldKp = await makeKeypair("k-old");
@@ -286,5 +335,127 @@ describe("optionalNyxidAuth", () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ user_id: USER_ID });
+  });
+});
+
+describe("nyxidAuth — static-bearer fallback", () => {
+  const STATIC_BEARER = "tok-test-tok-test-tok-test-tok-test";
+  const STATIC_USER_ID = "00000000-0000-0000-0000-000000000001";
+
+  async function runStaticBearerCase(opts: {
+    env?: Record<string, string>;
+    unsetEnv?: string[];
+    headers?: Record<string, string>;
+  }) {
+    const childEnv = {
+      ...process.env,
+      ...ENV_DEFAULTS,
+      ...(opts.env ?? {}),
+    } as Record<string, string>;
+    for (const key of opts.unsetEnv ?? []) {
+      delete childEnv[key];
+    }
+
+    const script = `
+      import { Hono } from "hono";
+
+      const app = new Hono();
+      const { nyxidAuth } = await import("./src/middleware/auth.ts");
+      app.use("*", nyxidAuth);
+      app.get("/whoami", (c) => c.json({ user_id: c.get("user_id") }));
+
+      const res = await app.request(
+        new Request("http://test.local/whoami", {
+          headers: ${JSON.stringify(opts.headers ?? {})},
+        }),
+      );
+
+      console.log(JSON.stringify({
+        status: res.status,
+        body: await res.json(),
+      }));
+    `;
+
+    const proc = Bun.spawn({
+      cmd: ["bun", "-e", script],
+      cwd: process.cwd(),
+      env: childEnv,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const stdout = await new Response(proc.stdout).text();
+    const stderr = await new Response(proc.stderr).text();
+    const exitCode = await proc.exited;
+
+    expect(exitCode).toBe(0);
+    return {
+      stderr,
+      result: JSON.parse(stdout.trim()) as {
+        status: number;
+        body: { error?: string; user_id?: string | null };
+      },
+    };
+  }
+
+  test("env not set: Authorization bearer still returns 401 missing_identity", async () => {
+    const { result } = await runStaticBearerCase({
+      unsetEnv: ["NOCTURNE_STATIC_BEARER"],
+      headers: { authorization: "Bearer whatever" },
+    });
+
+    expect(result.status).toBe(401);
+    expect(result.body).toEqual({ error: "missing_identity" });
+  });
+
+  test("bearer set but FORCE unset: bypass disabled (fail-closed)", async () => {
+    // Matches the missing-NODE_ENV scenario in production — the bypass MUST
+    // stay closed unless FORCE=1 is explicit. Forgetting the flag fails safe.
+    const { result } = await runStaticBearerCase({
+      env: { NOCTURNE_STATIC_BEARER: STATIC_BEARER },
+      headers: { authorization: `Bearer ${STATIC_BEARER}` },
+    });
+
+    expect(result.status).toBe(401);
+    expect(result.body).toEqual({ error: "missing_identity" });
+  });
+
+  test("bearer set + FORCE=1 + matching bearer returns sentinel user", async () => {
+    const { stderr, result } = await runStaticBearerCase({
+      env: {
+        NOCTURNE_STATIC_BEARER: STATIC_BEARER,
+        NOCTURNE_STATIC_BEARER_FORCE: "1",
+      },
+      headers: { authorization: `Bearer ${STATIC_BEARER}` },
+    });
+
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ user_id: STATIC_USER_ID });
+    expect(stderr).toContain("auth: static bearer accepted");
+  });
+
+  test("bearer set + FORCE=1 + wrong bearer falls through to 401", async () => {
+    const { result } = await runStaticBearerCase({
+      env: {
+        NOCTURNE_STATIC_BEARER: STATIC_BEARER,
+        NOCTURNE_STATIC_BEARER_FORCE: "1",
+      },
+      headers: { authorization: "Bearer wrong-token" },
+    });
+
+    expect(result.status).toBe(401);
+    expect(result.body).toEqual({ error: "missing_identity" });
+  });
+
+  test("FORCE=0 disables the bypass even with a matching bearer", async () => {
+    const { result } = await runStaticBearerCase({
+      env: {
+        NOCTURNE_STATIC_BEARER: STATIC_BEARER,
+        NOCTURNE_STATIC_BEARER_FORCE: "0",
+      },
+      headers: { authorization: `Bearer ${STATIC_BEARER}` },
+    });
+
+    expect(result.status).toBe(401);
+    expect(result.body).toEqual({ error: "missing_identity" });
   });
 });

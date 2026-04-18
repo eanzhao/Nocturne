@@ -28,7 +28,7 @@ import {
 } from "jose";
 import postgres, { type Sql } from "postgres";
 import { config } from "../config.ts";
-import { __internals__, __setClient__ } from "../index/supabase.ts";
+import { IndexError, __internals__, __setClient__ } from "../index/supabase.ts";
 import {
   __clearJwksCacheForTesting,
   __setJwksFetcherForTesting,
@@ -104,8 +104,8 @@ async function makeKeypair(kid = "k1"): Promise<Keypair> {
 async function signFor(kp: Keypair, sub: string): Promise<string> {
   return new SignJWT({})
     .setProtectedHeader({ alg: "RS256", kid: kp.kid })
-    .setIssuer("https://nyx-test.invalid")
-    .setAudience("nocturne")
+    .setIssuer(config.NYXID_JWT_ISSUER)
+    .setAudience(config.NYXID_JWT_AUDIENCE)
     .setSubject(sub)
     .setIssuedAt()
     .setExpirationTime("60s")
@@ -378,5 +378,34 @@ describe("GET /u/{slug} — share-token branch", () => {
       expect(await res.json()).toEqual({ error: "invalid_share_token" });
       __setClient__(null);
     }
+  });
+});
+
+describe("GET /u/{slug} — IndexError mapping", () => {
+  test("listPagesForUser throwing IndexError(unavailable) → 503 archive_unavailable", async () => {
+    const fake = installFakeSql();
+    fake.setResponder(() => {
+      throw new IndexError("unavailable", "simulated outage");
+    });
+
+    // Valid token resolves via a separate responder branch, so route an auth
+    // path instead — but the responder throws unconditionally. Use the
+    // auth-branch listPagesForUser path.
+    const kp = await makeKeypair();
+    __setJwksFetcherForTesting(async () => ({ keys: [kp.publicJwk] }));
+    const token = await signFor(kp, OWNER_ID);
+
+    const res = await mountApp().request(`/u/${ownerSlug}`, {
+      headers: {
+        "x-nyxid-user-id": OWNER_ID,
+        "x-nyxid-identity-token": token,
+      },
+    });
+
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: "archive_unavailable" });
+    __setJwksFetcherForTesting(null);
+    __clearJwksCacheForTesting();
+    __setClient__(null);
   });
 });

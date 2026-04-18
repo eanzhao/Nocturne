@@ -29,13 +29,12 @@
  *   IndexError{duplicate}           → 500 duplicate_page_id
  *   IndexError{timeout|…}           → 500 index_write_failed
  */
-import { createHmac } from "node:crypto";
-
 import type { Context } from "hono";
 import { Hono } from "hono";
 import { z } from "zod";
 
 import { config } from "../config.ts";
+import { deriveUserSlug } from "../utils/user-slug.ts";
 import { nyxidAuth } from "../middleware/auth.ts";
 import {
   PlannerInvalidOutput,
@@ -77,24 +76,11 @@ type FormatRequestBody = z.infer<typeof FormatRequest>;
 export const __resetSpecsForTesting = __resetPipelineSpecsForTesting;
 
 // ---------------------------------------------------------------------------
-// Owner slug derivation.
-//
-// The chrome zone optionally links to `/u/{owner_slug}` — the user's archive.
-// We don't want to leak the raw NyxID user UUID into HTML, so we HMAC it with
-// the service secret and truncate to 16 hex chars (~64 bits, plenty for a
-// non-enumeration identifier). Deterministic per user: two briefs from the
-// same user produce the same owner_slug, which is exactly what we want for
-// "all your Nocturnes" to mean something.
-
-function ownerSlugFor(userId: string): string {
-  return createHmac("sha256", config.NYXID_SERVICE_SECRET)
-    .update(userId, "utf8")
-    .digest("hex")
-    .slice(0, 16);
-}
-
-// ---------------------------------------------------------------------------
 // Router
+//
+// Owner slug (the `/u/{slug}` archive link embedded in chrome) is derived via
+// `deriveUserSlug` in src/utils/user-slug.ts so the HTTP `POST /format` path
+// and the `GET /u/{slug}` resolver never drift on algorithm or truncation.
 
 export const formatRouter = new Hono();
 
@@ -142,7 +128,7 @@ formatRouter.post("/format", nyxidAuth, async (c) => {
     return indexErrorResponse(c, err);
   }
 
-  const owner_slug = ownerSlugFor(user_id);
+  const owner_slug = await deriveUserSlug(user_id, config.NYXID_SERVICE_SECRET);
 
   // --- Pipeline: planner → spec → render ------------------------------------
   let generated: GenerateResult;

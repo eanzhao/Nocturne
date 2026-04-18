@@ -10,6 +10,7 @@
 import crypto from "node:crypto";
 import postgres, { type Sql } from "postgres";
 import { config } from "../config.ts";
+import { bytesToBase62 } from "../utils/base62.ts";
 
 /**
  * The `postgres` driver attaches its error class to the default export at
@@ -316,35 +317,6 @@ export async function logPlannerFallback(
 // ---------------------------------------------------------------------------
 // Share tokens
 // ---------------------------------------------------------------------------
-
-/**
- * Base62 alphabet — avoids URL-reserved characters and avoids the `=` padding
- * that base64url still emits for some lengths. Keeps share URLs clean.
- */
-const BASE62_ALPHABET =
-  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-
-/**
- * Encode `bytes` as base62 by treating them as a big-endian unsigned integer.
- *
- * For a 16-byte input (128 bits) this yields 22 characters, carrying the full
- * 128 bits of entropy. We deliberately avoid the (chunk-and-concat) family of
- * base62 encoders — they truncate to ~21–23 chars but leak the internal
- * chunking in token length variance.
- */
-function bytesToBase62(bytes: Uint8Array): string {
-  let n = 0n;
-  for (const b of bytes) n = (n << 8n) | BigInt(b);
-  if (n === 0n) return "0";
-  let out = "";
-  const BASE = 62n;
-  while (n > 0n) {
-    const rem = n % BASE;
-    out = BASE62_ALPHABET[Number(rem)] + out;
-    n = n / BASE;
-  }
-  return out;
-}
 
 /**
  * SHA-256 hex digest of `token`. Used as `token_hash` in the index so the

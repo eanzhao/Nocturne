@@ -10,7 +10,7 @@ Nocturne 做一件事 —— 接收一段 LLM 输出，返回一个 URL：打开
 
 ## 方案概览
 
-- **一个 HTTP 接口**：`POST /format` 收内容，返回 `{ url, expires_at }`
+- **一个 HTTP 接口**：`POST /format` 收内容，返回 `{ url }`
 - **一个渲染站点**：`/v/{id}` 动态渲染页面，响应式 CSS，内容存储 + CDN 缓存
 - **挂在 NyxID 下**：作为 [NyxID](https://github.com/ChronoAIProject/NyxID) 生态里的一个 downstream service。调用方通过 `/api/v1/proxy/s/nocturne/format` 调用，凭证由 NyxID 托管注入 —— Nocturne 自身不做用户鉴权系统，只校验来自 NyxID 的 Bearer token
 
@@ -28,40 +28,19 @@ Nocturne 做一件事 —— 接收一段 LLM 输出，返回一个 URL：打开
 
 技术栈倾向 **TypeScript + Next.js**：一份代码既是 API 也是 SSR 渲染层，部署走 Vercel / Fly.io / 自建 Docker 都轻。
 
-## 待定：排版由谁来做
+## 排版：Nocturne 内部做版面编辑
 
-核心设计问题 —— 两种思路：
-
-### A. 调用方固定排版
-客户端在 POST 时就给出结构化内容（标题、导语、正文块、引文、小标题、图位），Nocturne 只做 **渲染**。
-- ✅ 快、可控、零 LLM 成本
-- ❌ 调用方需要理解版式，agent 得先想好怎么排
-
-### B. Nocturne 内部调 LLM 做版面编辑
-客户端只发原始内容，Nocturne **通过 NyxID 代理调用用户自己配置的 LLM**（用户在 Nocturne 设置里指定：`llm-openai` / `llm-anthropic` / `llm-deepseek` ...），让 LLM 做编辑工作：
-- 起标题、导语、小标题
-- 切版块、挑引文、决定重点与配图位置
-- 输出结构化 JSON 交给渲染层
-
-- ✅ 调用方零心智负担，质量上限高
-- ❌ 慢、耗 token、需要用户预先绑定 LLM
-
-### 当前倾向：A + B 混合，默认走 B
+客户端只发原始内容，Nocturne **通过 NyxID 代理调用用户自己配置的 LLM**，让 LLM 做编辑工作：起标题、导语、小标题；切版块、挑引文、决定重点；输出结构化 JSON 交给渲染层（`AestheticSpec`）。
 
 ```
 POST /format
 {
-  "content": "...",            // 必填：原始内容
-  "layout": { ... },           // 可选：若提供，跳过 LLM 版面编辑
-  "theme": "classic|modern"    // 可选：版式风格
+  "content": "..."     // 必填：原始内容
 }
 ```
 
-- 不传 `layout` → 走 B（调 LLM 编辑版面），普通用户省心
-- 传了 `layout` → 走 A（只渲染），agent 和追求速度/成本的调用方可控
 - LLM 费用走用户自己的 NyxID 凭证，Nocturne 不替用户付钱
-
-这样既保住"一条 POST 就能出图"的体验，也给高级用户留了口子。
+- `spec_id`（版式风格）由 LLM 基于内容挑选，客户端不需要指定
 
 ## 状态
 

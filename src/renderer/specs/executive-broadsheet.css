@@ -1,0 +1,25 @@
+/*
+ * Per-spec CSS for `executive-broadsheet`.
+ *
+ * Architecture scaffold for DESIGN.md § "shared layer is structural, not
+ * aesthetic" — every spec owns a dedicated CSS file so future visual work
+ * can diverge without re-flowing `base.css`.
+ *
+ * Today this file only carries the colored-dot severity style (the one
+ * visual rule that is *structurally* selected by `severity_style` in the
+ * spec JSON). Shared typography/chrome/layout still lives in base.css —
+ * follow-up work differentiates each spec's visual voice per the issue.
+ */
+
+/* severity_style: colored-dot */
+.sev-dot {
+  display: inline-block;
+  width: 0.65em;
+  height: 0.65em;
+  border-radius: 50%;
+  vertical-align: middle;
+  margin-right: 0.3em;
+}
+.sev-dot.sev-high { background: var(--severity-high, var(--accent)); }
+.sev-dot.sev-med  { background: var(--severity-med, var(--muted)); }
+.sev-dot.sev-low  { background: var(--severity-low, var(--hairline)); }

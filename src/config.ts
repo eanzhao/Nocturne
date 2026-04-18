@@ -25,8 +25,21 @@ const ConfigSchema = z.object({
   NYXID_BASE_URL: z.string().url(),
   NYXID_JWKS_URL: z.string().url(),
 
+  // Identity-assertion JWT claims that NyxID mints for this service. Both
+  // MUST match NyxID's server-side config exactly:
+  //   - NYXID_JWT_ISSUER    → NyxID's `jwt_issuer`                (string)
+  //   - NYXID_JWT_AUDIENCE  → the DownstreamService row's
+  //                           `identity_jwt_audience` if set,
+  //                           else its `base_url`.
+  // Ask the NyxID admin for these values; guessing will cause every real
+  // request to fail 401 `invalid_identity_token`.
+  NYXID_JWT_ISSUER: z.string().min(1),
+  NYXID_JWT_AUDIENCE: z.string().min(1),
+
   // Used for HMAC-deriving public user slugs (archive URLs)
   NYXID_SERVICE_SECRET: z.string().min(32),
+  NOCTURNE_STATIC_BEARER: z.string().min(32).optional(),
+  NOCTURNE_STATIC_BEARER_FORCE: z.enum(["0", "1"]).default("0"),
 
   // Model served via NyxID LLM Gateway for the layout planner
   NOCTURNE_PLANNER_MODEL: z.string().min(1).default("gpt-5.4"),

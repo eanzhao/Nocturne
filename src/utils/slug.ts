@@ -22,40 +22,9 @@
 // Default entropy: 15 bytes ≈ 120 bits. Kept inline so this module does not
 // couple to server-side config; callers that want a different size pass it
 // as an argument.
+import { bytesToBase62 } from "./base62.ts";
+
 const DEFAULT_PAGE_ID_BYTES = 15;
-
-/**
- * Base62 alphabet. The order matches the well-known GMP/bitcoin/base62
- * convention (0-9, A-Z, a-z). We intentionally do NOT shuffle the alphabet —
- * shuffling adds zero security (the entropy lives in the input bytes, not the
- * output mapping) and makes the result harder for humans to type.
- */
-const BASE62_ALPHABET =
-  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-
-/**
- * Encode `bytes` as base62 by treating them as a single big-endian unsigned
- * integer. For a 15-byte input (120 bits) this yields ~20 characters with no
- * variance in the high-order bit count leaking; the chunk-and-concat style of
- * base62 encoders is deliberately avoided for the same reason as in
- * `src/index/supabase.ts` (see its `bytesToBase62` docs).
- *
- * An all-zero input (which should essentially never happen with a CSPRNG)
- * returns `"0"`; that's still a valid URL slug, even if an oddly short one.
- */
-function bytesToBase62(bytes: Uint8Array): string {
-  let n = 0n;
-  for (const b of bytes) n = (n << 8n) | BigInt(b);
-  if (n === 0n) return "0";
-  let out = "";
-  const BASE = 62n;
-  while (n > 0n) {
-    const rem = n % BASE;
-    out = BASE62_ALPHABET[Number(rem)] + out;
-    n = n / BASE;
-  }
-  return out;
-}
 
 /**
  * Return a new page_id. Fresh random bytes every call; callers must never

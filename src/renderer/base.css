@@ -248,35 +248,12 @@ blockquote, .hero-quote, .pull-quote {
 .watchlist-item .label { flex: 0 0 auto; }
 .watchlist-item .note { color: var(--muted); font-size: 0.9rem; }
 
-/* severity_style: colored-dot */
-.sev-dot {
-  display: inline-block;
-  width: 0.65em;
-  height: 0.65em;
-  border-radius: 50%;
-  vertical-align: middle;
-  margin-right: 0.3em;
-}
-.sev-dot.sev-high { background: var(--severity-high, var(--accent)); }
-.sev-dot.sev-med  { background: var(--severity-med, var(--muted)); }
-.sev-dot.sev-low  { background: var(--severity-low, var(--hairline)); }
-
-/* severity_style: bracketed-text */
-.sev-bracket {
-  font-family: var(--font-mono);
-  font-size: 0.8em;
-  color: var(--muted);
-  letter-spacing: 0.05em;
-  margin-right: 0.3em;
-}
-
-/* severity_style: traditional-mark */
-.sev-mark {
-  font-family: var(--font-body);
-  font-size: 1em;
-  margin-right: 0.3em;
-  color: var(--accent, var(--fg));
-}
+/*
+ * severity-style rules live in per-spec CSS under
+ * src/renderer/specs/{spec-id}.css — see `renderPage`. Only one of the
+ * three matches the active spec; shipping them all here forced every spec
+ * to carry dead weight and invited accidental overlap.
+ */
 
 /* ---------- Block: notes ---------- */
 
@@ -363,24 +340,12 @@ blockquote, .hero-quote, .pull-quote {
 .provenance-strip .sep { color: var(--hairline); }
 .provenance-strip .wordmark { color: var(--fg); font-weight: 600; letter-spacing: 0.2em; }
 
-/* ---------- Vertical writing mode (guji-classical) ---------- */
+/*
+ * Vertical writing-mode grid flow is guji-classical-specific and lives in
+ * its per-spec CSS file.
+ */
 
-.writing-mode-vertical-rl {
-  writing-mode: vertical-rl;
-  -webkit-writing-mode: vertical-rl;
-  text-orientation: mixed;
-}
-.writing-mode-vertical-rl body {
-  min-height: 100vh;
-}
-.writing-mode-vertical-rl .layout {
-  grid-auto-flow: column;
-  grid-template-columns: none;
-  grid-auto-columns: minmax(14em, 1fr);
-  min-height: 80vh;
-}
-
-/* ---------- Responsive collapse ---------- */
+/* ---------- Responsive collapse (shared — column → stack threshold) ---------- */
 
 @media (max-width: 900px) {
   .layout-zones-3 {
@@ -391,18 +356,4 @@ blockquote, .hero-quote, .pull-quote {
       "right";
   }
   body { padding: calc(var(--space-base) * 4); }
-}
-
-@media (max-width: 768px) {
-  .writing-mode-vertical-rl {
-    writing-mode: horizontal-tb;
-    -webkit-writing-mode: horizontal-tb;
-    text-orientation: unset;
-  }
-  .writing-mode-vertical-rl .layout {
-    grid-auto-flow: row;
-    grid-template-columns: 1fr;
-    grid-auto-columns: auto;
-    min-height: auto;
-  }
 }

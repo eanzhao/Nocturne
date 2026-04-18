@@ -27,7 +27,7 @@ import {
 } from "jose";
 import { type Sql } from "postgres";
 import { config } from "../config.ts";
-import { __setClient__ } from "../index/supabase.ts";
+import { IndexError, __setClient__ } from "../index/supabase.ts";
 import {
   __clearJwksCacheForTesting,
   __setJwksFetcherForTesting,
@@ -104,8 +104,8 @@ async function makeKeypair(kid = "k1"): Promise<Keypair> {
 async function signFor(kp: Keypair, sub: string): Promise<string> {
   return new SignJWT({})
     .setProtectedHeader({ alg: "RS256", kid: kp.kid })
-    .setIssuer("https://nyx-test.invalid")
-    .setAudience("nocturne")
+    .setIssuer(config.NYXID_JWT_ISSUER)
+    .setAudience(config.NYXID_JWT_AUDIENCE)
     .setSubject(sub)
     .setIssuedAt()
     .setExpirationTime("60s")
@@ -398,5 +398,23 @@ describe("DELETE /u/share/:token_id", () => {
       { method: "DELETE" },
     );
     expect(res.status).toBe(401);
+  });
+});
+
+describe("IndexError mapping", () => {
+  test("createShareToken throwing IndexError(duplicate) → 500 share_token_conflict", async () => {
+    const fake = installFakeSql();
+    fake.setResponder(() => {
+      throw new IndexError("duplicate", "simulated unique-violation");
+    });
+
+    const res = await mountApp().request("/u/share", {
+      method: "POST",
+      headers: { ...(await authHeaders()), "content-type": "application/json" },
+      body: "{}",
+    });
+
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "share_token_conflict" });
   });
 });

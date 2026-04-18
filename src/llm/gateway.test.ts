@@ -23,6 +23,8 @@ const ENV_DEFAULTS: Record<string, string> = {
   CHRONO_STORAGE_URL: 'http://127.0.0.1:3805',
   NYXID_BASE_URL: 'https://nyx-api.test',
   NYXID_JWKS_URL: 'https://nyx-api.test/.well-known/jwks.json',
+  NYXID_JWT_ISSUER: 'https://nyx-api.test',
+  NYXID_JWT_AUDIENCE: 'nocturne',
   NYXID_SERVICE_SECRET: 'x'.repeat(32),
 };
 for (const [k, v] of Object.entries(ENV_DEFAULTS)) {

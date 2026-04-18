@@ -70,8 +70,8 @@ export async function signFor(
 ): Promise<string> {
   return new SignJWT({})
     .setProtectedHeader({ alg: "RS256", kid: kp.kid })
-    .setIssuer("https://nyx-test.invalid")
-    .setAudience("nocturne")
+    .setIssuer(config.NYXID_JWT_ISSUER)
+    .setAudience(config.NYXID_JWT_AUDIENCE)
     .setSubject(sub)
     .setIssuedAt()
     .setExpirationTime(opts.expiresIn ?? "60s")
