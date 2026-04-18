@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Daily Brief — Issue #42 · Executive Broadsheet Spike</title>
+<style>
+  /* Tokens pulled from src/renderer/specs/executive-broadsheet.json (see DESIGN.md). */
+  :root {
+    --bg: #f7f1df;
+    --fg: #1f1913;
+    --muted: #6b5e4d;
+    --accent: #b23d18;
+    --hairline: #1f1913;
+    --sev-high: #b23d18;
+    --sev-med: #6b5e4d;
+    --sev-low: rgba(31, 25, 19, 0.30);
+    --f-headline: 'ET Book', 'Source Serif Pro', Georgia, serif;
+    --f-body: 'Source Serif Pro', 'Tiempos Text', Georgia, serif;
+    --f-label: 'Söhne Breit', 'Inter', sans-serif;
+    --f-mono: 'IBM Plex Mono', monospace;
+  }
+  @page { size: A4 portrait; margin: 18mm; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font-family: var(--f-body); }
+  body { max-width: 1120px; margin: 0 auto; padding: 32px 28px 40px; line-height: 1.45; }
+
+  .masthead { border-bottom: 2px solid var(--hairline); padding-bottom: 10px; display: flex; justify-content: space-between; align-items: baseline; font-family: var(--f-label); text-transform: uppercase; letter-spacing: 0.14em; font-size: 11px; }
+  .masthead .wordmark { font-size: 14px; letter-spacing: 0.32em; }
+  .hairline { border: 0; border-top: 1px solid var(--hairline); margin: 16px 0; }
+
+  .hero { padding: 18px 0 4px; }
+  .hero .kicker { font-family: var(--f-label); text-transform: uppercase; letter-spacing: 0.22em; font-size: 10px; color: var(--muted); }
+  .hero h1 { font-family: var(--f-headline); font-weight: 500; font-size: 52px; line-height: 1.04; letter-spacing: -0.01em; margin: 6px 0 10px; }
+  .hero .dek { font-family: var(--f-headline); font-style: italic; font-size: 18px; color: var(--fg); max-width: 780px; margin: 0 0 10px; }
+
+  .hero-quote { border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); padding: 14px 0; margin: 14px 0 20px; font-family: var(--f-headline); font-size: 22px; font-style: italic; text-align: center; }
+  .hero-quote .attr { display: block; font-family: var(--f-label); font-style: normal; text-transform: uppercase; letter-spacing: 0.18em; font-size: 10px; color: var(--muted); margin-top: 6px; }
+
+  .columns { column-count: 3; column-gap: 32px; column-rule: 1px solid var(--hairline); }
+  @media (max-width: 900px) { .columns { column-count: 1; column-rule: 0; } }
+  .col { break-inside: avoid; margin-bottom: 16px; }
+  .col h2 { font-family: var(--f-label); text-transform: uppercase; letter-spacing: 0.18em; font-size: 11px; margin: 0 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--hairline); }
+
+  .priority { break-inside: avoid; margin: 0 0 14px; }
+  .priority .n { font-family: var(--f-label); font-size: 10px; color: var(--muted); letter-spacing: 0.2em; }
+  .priority h3 { font-family: var(--f-headline); font-weight: 500; font-size: 18px; line-height: 1.25; margin: 2px 0 4px; }
+  .priority p { margin: 0 0 4px; font-size: 13.5px; }
+  .priority .action { font-family: var(--f-mono); font-size: 11.5px; color: var(--muted); }
+  .priority .action::before { content: "→ "; color: var(--accent); }
+
+  .timeline { list-style: none; padding: 0; margin: 0; }
+  .timeline li { display: grid; grid-template-columns: 52px 1fr; gap: 8px; padding: 4px 0; border-bottom: 1px dotted var(--hairline); font-size: 13px; }
+  .timeline time { font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
+
+  .watchlist { list-style: none; padding: 0; margin: 0; }
+  .watchlist li { display: grid; grid-template-columns: 14px 1fr auto; gap: 8px; align-items: baseline; padding: 4px 0; font-size: 13px; }
+  .watchlist .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-top: 6px; }
+  .watchlist .dot.high { background: var(--sev-high); }
+  .watchlist .dot.med { background: var(--sev-med); }
+  .watchlist .dot.low { background: var(--sev-low); }
+  .watchlist .delta { font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
+
+  .notes { list-style: none; padding: 0; margin: 0; font-size: 13px; }
+  .notes li { padding: 4px 0; border-bottom: 1px solid var(--hairline); }
+  .notes li::before { content: "§ "; font-family: var(--f-label); color: var(--accent); }
+
+  .pull-quote { margin: 28px 0; padding: 18px 0; border-top: 2px solid var(--hairline); border-bottom: 2px solid var(--hairline); font-family: var(--f-headline); font-size: 28px; line-height: 1.2; text-align: center; font-style: italic; }
+
+  .chrome-zone { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
+  .chrome-zone button { font-family: var(--f-label); text-transform: uppercase; letter-spacing: 0.18em; font-size: 10px; background: transparent; border: 1px solid var(--hairline); color: var(--fg); padding: 6px 10px; cursor: pointer; }
+
+  .provenance-strip { margin-top: 18px; padding-top: 10px; border-top: 1px solid var(--hairline); font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); display: flex; justify-content: space-between; }
+</style>
+</head>
+<body class="spec-executive-broadsheet">
+
+  <header class="masthead">
+    <span class="wordmark">NOCTURNE</span>
+    <span>Daily Brief · Issue #42 · 2026-04-17</span>
+  </header>
+
+  <section class="hero">
+    <div class="kicker">The Day Ahead</div>
+    <h1>Funding round closes Thursday; hiring freeze across the backend team lifts Monday.</h1>
+    <p class="dek">Two moving pieces, both consequential. Everything else on today's board is routine maintenance — until Kim's 3pm call.</p>
+  </section>
+
+  <blockquote class="hero-quote">
+    "Ship the thing that makes the next thing obvious."
+    <span class="attr">— Internal memo, Q2 planning offsite</span>
+  </blockquote>
+
+  <section class="columns">
+    <div class="col">
+      <h2>Top Priorities</h2>
+
+      <article class="priority">
+        <div class="n">01</div>
+        <h3>Close the Series A paperwork</h3>
+        <p>Wiring confirmed for Thursday 14:00 PT. Legal wants counter-signatures back by EOD Wednesday or the round slips a week.</p>
+        <p class="action">Sign & return redlines before 18:00 today.</p>
+      </article>
+
+      <article class="priority">
+        <div class="n">02</div>
+        <h3>Lift backend hiring freeze</h3>
+        <p>Budget approved; five reqs queue up for Monday. Draft offer ladder for senior platform engineers before the weekend.</p>
+        <p class="action">Share ladder doc with Priya + finance.</p>
+      </article>
+
+      <article class="priority">
+        <div class="n">03</div>
+        <h3>Prep Kim (15:00 call)</h3>
+        <p>She is escalating the data residency question. Have the legal memo and the proposed EU-region timeline in hand before the call starts.</p>
+        <p class="action">Read memo §3–§5; skim residency timeline.</p>
+      </article>
+
+      <article class="priority">
+        <div class="n">04</div>
+        <h3>Weekly all-hands agenda</h3>
+        <p>Only two items this week: funding close (redacted), and the guardrails incident post-mortem. Keep it under 25 minutes.</p>
+        <p class="action">Send agenda to team by 17:00.</p>
+      </article>
+    </div>
+
+    <div class="col">
+      <h2>Timeline</h2>
+      <ul class="timeline">
+        <li><time>09:30</time><span>Standup — backend (remote)</span></li>
+        <li><time>10:00</time><span>Review SOC2 evidence requests with Legal</span></li>
+        <li><time>11:15</time><span>1:1 with Priya — hiring ladder walk-through</span></li>
+        <li><time>13:00</time><span>Lunch blocked — write Thursday all-hands prep</span></li>
+        <li><time>15:00</time><span>Call: Kim (data residency)</span></li>
+        <li><time>16:30</time><span>Design review — daily-brief specs</span></li>
+        <li><time>18:00</time><span>Legal redline deadline</span></li>
+      </ul>
+
+      <h2 style="margin-top:18px">Notes</h2>
+      <ul class="notes">
+        <li>Remember to forward the board update draft to Ana for a sanity read.</li>
+        <li>Cancel the Friday marketing sync — Leo is out, no decision can land without him.</li>
+        <li>Check whether the staging DB migration from last night kept the indexes.</li>
+      </ul>
+    </div>
+
+    <div class="col">
+      <h2>Watchlist</h2>
+      <ul class="watchlist">
+        <li><span class="dot high"></span><span>NyxID staging — intermittent 502s since 03:00 UTC</span><span class="delta">+3 alerts</span></li>
+        <li><span class="dot high"></span><span>AWS eu-west-1 — partial degradation announced</span><span class="delta">AWS SHD</span></li>
+        <li><span class="dot med"></span><span>Competitor X raised a Series B (TechCrunch)</span><span class="delta">$38M</span></li>
+        <li><span class="dot med"></span><span>Llama-4 70B pricing cut by Fireworks</span><span class="delta">−22%</span></li>
+        <li><span class="dot low"></span><span>Internal: docs site search latency creeping up</span><span class="delta">p95 1.4s</span></li>
+        <li><span class="dot low"></span><span>GitHub Actions — macOS runner queue depth</span><span class="delta">~6 min</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <blockquote class="pull-quote">
+    &ldquo;The round doesn't change what we do today. It changes what we can refuse to do tomorrow.&rdquo;
+  </blockquote>
+
+  <footer>
+    <div class="chrome-zone">
+      <button type="button">Export as PDF</button>
+      <button type="button">Rate · good</button>
+      <button type="button">Rate · bad</button>
+      <button type="button">Copy permalink</button>
+    </div>
+    <div class="provenance-strip">
+      <span>Issue #42 · 2026-04-17 · model: claude-opus-4-7 · NOCTURNE</span>
+      <span>executive-broadsheet · A4 portrait · 18mm</span>
+    </div>
+  </footer>
+
+</body>
+</html>
