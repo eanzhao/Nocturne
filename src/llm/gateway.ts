@@ -109,6 +109,109 @@ export interface PlannerResult {
   rawLLMOutput?: unknown;
 }
 
+export interface OpenAICompletionCall {
+  url: string;
+  apiKey: string;
+  model: string;
+  rawContent: string;
+  fetchImpl?: FetchLike;
+  timeoutMs?: number;
+}
+
+export async function callOpenAICompletion(
+  call: OpenAICompletionCall,
+): Promise<PlannerResult> {
+  const fetchImpl = call.fetchImpl ?? fetch;
+  const timeoutMs = call.timeoutMs ?? PLANNER_SOFT_TIMEOUT_MS;
+
+  const body = {
+    model: call.model,
+    messages: [
+      { role: "system", content: PLANNER_SYSTEM_PROMPT },
+      { role: "user", content: buildUserPrompt(call.rawContent) },
+    ],
+    response_format: { type: "json_object" as const },
+  };
+
+  let response: Response;
+  try {
+    response = await fetchImpl(call.url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${call.apiKey}`,
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (err) {
+    if (isAbortError(err)) {
+      throw new PlannerTimeout(
+        `Planner call exceeded soft timeout of ${timeoutMs}ms`,
+      );
+    }
+    throw err;
+  }
+
+  if (response.status === 429) {
+    const body = await safeReadText(response);
+    throw new PlannerRateLimited(body, response.headers.get("retry-after") ?? undefined);
+  }
+  if (!response.ok) {
+    const body = await safeReadText(response);
+    throw new PlannerUpstreamError(response.status, body);
+  }
+
+  const envelopeUnknown = await response.json().catch((err: unknown) => {
+    throw new PlannerInvalidOutput(
+      `Upstream returned non-JSON envelope: ${stringifyError(err)}`,
+      "",
+    );
+  });
+
+  const envelope = ChatCompletionResponse.safeParse(envelopeUnknown);
+  if (!envelope.success) {
+    throw new PlannerInvalidOutput(
+      "Upstream envelope did not match OpenAI chat-completions shape",
+      JSON.stringify(envelopeUnknown),
+      envelope.error.issues,
+    );
+  }
+
+  const rawContentStr = envelope.data.choices[0]!.message.content;
+
+  let parsedJson: unknown;
+  try {
+    parsedJson = JSON.parse(rawContentStr);
+  } catch (err) {
+    throw new PlannerInvalidOutput(
+      `Planner returned non-JSON content: ${stringifyError(err)}`,
+      rawContentStr,
+    );
+  }
+
+  const strict = DailyBriefBlock.safeParse(parsedJson);
+  if (strict.success) return { brief: strict.data };
+
+  if (isSpecIdOnlyFailure(strict.error, parsedJson)) {
+    const patched = { ...(parsedJson as Record<string, unknown>), spec_id: "executive-broadsheet" };
+    const retry = DailyBriefBlock.safeParse(patched);
+    if (retry.success) {
+      return {
+        brief: retry.data,
+        fallbackReason: "invalid_spec_id",
+        rawLLMOutput: parsedJson,
+      };
+    }
+  }
+
+  throw new PlannerInvalidOutput(
+    "Planner output failed daily_brief_v1 schema validation",
+    rawContentStr,
+    strict.error.issues,
+  );
+}
+
 /**
  * Minimum fetch shape we actually use. Narrower than `typeof fetch` so tests
  * can pass a plain async function without implementing Bun's extra methods
@@ -143,104 +246,18 @@ export async function planDailyBrief(
   delegationToken: string,
   options: PlannerOptions = {},
 ): Promise<PlannerResult> {
-  const fetchImpl = options.fetchImpl ?? fetch;
-  const timeoutMs = options.timeoutMs ?? PLANNER_SOFT_TIMEOUT_MS;
   const model = options.model ?? config.NOCTURNE_PLANNER_MODEL;
   const baseUrl = options.baseUrl ?? config.NYXID_BASE_URL;
-
   const url = `${baseUrl.replace(/\/$/, "")}/api/v1/llm/gateway/v1/chat/completions`;
 
-  const body = {
+  return callOpenAICompletion({
+    url,
+    apiKey: delegationToken,
     model,
-    messages: [
-      { role: "system", content: PLANNER_SYSTEM_PROMPT },
-      { role: "user", content: buildUserPrompt(rawContent) },
-    ],
-    response_format: { type: "json_object" as const },
-  };
-
-  let response: Response;
-  try {
-    response = await fetchImpl(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${delegationToken}`,
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-  } catch (err) {
-    if (isAbortError(err)) {
-      throw new PlannerTimeout(
-        `Planner call exceeded soft timeout of ${timeoutMs}ms`,
-      );
-    }
-    throw err;
-  }
-
-  if (response.status === 429) {
-    const body = await safeReadText(response);
-    throw new PlannerRateLimited(body, response.headers.get("retry-after") ?? undefined);
-  }
-
-  if (!response.ok) {
-    const body = await safeReadText(response);
-    throw new PlannerUpstreamError(response.status, body);
-  }
-
-  const envelopeUnknown = await response.json().catch((err: unknown) => {
-    throw new PlannerInvalidOutput(
-      `Upstream returned non-JSON envelope: ${stringifyError(err)}`,
-      "",
-    );
+    rawContent,
+    fetchImpl: options.fetchImpl,
+    timeoutMs: options.timeoutMs,
   });
-
-  const envelope = ChatCompletionResponse.safeParse(envelopeUnknown);
-  if (!envelope.success) {
-    throw new PlannerInvalidOutput(
-      "Upstream envelope did not match OpenAI chat-completions shape",
-      JSON.stringify(envelopeUnknown),
-      envelope.error.issues,
-    );
-  }
-
-  const rawContentStr = envelope.data.choices[0]!.message.content;
-
-  let parsedJson: unknown;
-  try {
-    parsedJson = JSON.parse(rawContentStr);
-  } catch (err) {
-    throw new PlannerInvalidOutput(
-      `Planner returned non-JSON content: ${stringifyError(err)}`,
-      rawContentStr,
-    );
-  }
-
-  // First attempt: strict parse. If the only problem is spec_id, fall back.
-  const strict = DailyBriefBlock.safeParse(parsedJson);
-  if (strict.success) {
-    return { brief: strict.data };
-  }
-
-  if (isSpecIdOnlyFailure(strict.error, parsedJson)) {
-    const patched = { ...(parsedJson as Record<string, unknown>), spec_id: "executive-broadsheet" };
-    const retry = DailyBriefBlock.safeParse(patched);
-    if (retry.success) {
-      return {
-        brief: retry.data,
-        fallbackReason: "invalid_spec_id",
-        rawLLMOutput: parsedJson,
-      };
-    }
-    // Fell through — other problems exist. Fall out to the hard error below.
-  }
-
-  throw new PlannerInvalidOutput(
-    "Planner output failed daily_brief_v1 schema validation",
-    rawContentStr,
-    strict.error.issues,
-  );
 }
 
 // ---------------------------------------------------------------------------
