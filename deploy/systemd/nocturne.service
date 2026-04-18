@@ -1,0 +1,24 @@
+# Reference copy of the Nocturne systemd unit.
+#
+# The live unit on the Aliyun ECS host is written inline by the
+# `deploy-nocturne` skill (see Setup 5 in ~/.claude/skills/deploy-nocturne/SKILL.md).
+# This file is version-controlled so reviewers can catch drift between the
+# repo reference and the live box. If you change one, change the other.
+#
+# Install path on host: /etc/systemd/system/nocturne.service
+# After editing on host: systemctl daemon-reload && systemctl restart nocturne
+
+[Unit]
+Description=Nocturne - LLM output formatter
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/nocturne
+EnvironmentFile=/opt/nocturne/.env
+ExecStart=/opt/nocturne/nocturne
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
