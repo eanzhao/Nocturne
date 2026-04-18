@@ -163,6 +163,19 @@ export interface ShareTokenCreateResult {
   expires_at: Date;
 }
 
+/**
+ * Row shape for {@link listShareTokens}. Deliberately omits `token_hash` — the
+ * API surface never returns it (there is nothing a caller can do with a hash
+ * they already can't compute themselves), and keeping it out of the interface
+ * makes it impossible to accidentally serialise on the way to the wire.
+ */
+export interface ShareTokenRow {
+  token_id: string;
+  created_at: Date;
+  expires_at: Date | null;
+  revoked_at: Date | null;
+}
+
 // ---------------------------------------------------------------------------
 // Pages
 // ---------------------------------------------------------------------------
@@ -415,6 +428,34 @@ export async function revokeShareToken(
     return result.count > 0;
   } catch (err) {
     throw toIndexError(err, "revokeShareToken");
+  }
+}
+
+/**
+ * List every share token owned by `user_id` — active, revoked, and expired.
+ *
+ * Returns metadata only. The plaintext token has never been stored (we keep
+ * only `token_hash`), and this helper also omits the hash from the result
+ * shape so the API layer cannot accidentally leak a value an attacker could
+ * pre-image against weak tokens.
+ *
+ * Ordering: newest first. The archive UI will render these as a list of
+ * "tokens you've issued" with their lifecycle, so recency beats stability.
+ */
+export async function listShareTokens(
+  user_id: string,
+): Promise<ShareTokenRow[]> {
+  const sql = getClient();
+  try {
+    const rows = await sql<ShareTokenRow[]>`
+      SELECT token_id, created_at, expires_at, revoked_at
+      FROM nocturne.archive_share_tokens
+      WHERE user_id = ${user_id}
+      ORDER BY created_at DESC
+    `;
+    return [...rows];
+  } catch (err) {
+    throw toIndexError(err, "listShareTokens");
   }
 }
 

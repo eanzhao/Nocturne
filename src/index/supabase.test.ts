@@ -33,6 +33,7 @@ import {
   IndexError,
   insertPage,
   listPagesForUser,
+  listShareTokens,
   logPlannerFallback,
   nextSequence,
   resolveShareToken,
@@ -424,6 +425,32 @@ describe("revokeShareToken", () => {
     const fake = installFake();
     fake.setResponder(() => ({ count: 0 }));
     expect(await revokeShareToken("tid-x", "uid-y")).toBe(false);
+  });
+});
+
+describe("listShareTokens", () => {
+  test("SELECTs (token_id, created_at, expires_at, revoked_at) for user, newest first", async () => {
+    const fake = installFake();
+    const now = new Date("2026-04-17T00:00:00Z");
+    const exp = new Date("2026-07-17T00:00:00Z");
+    fake.setResponder(() => [
+      { token_id: "t1", created_at: now, expires_at: exp, revoked_at: null },
+      { token_id: "t2", created_at: now, expires_at: null, revoked_at: exp },
+    ]);
+
+    const rows = await listShareTokens("uid-1");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.token_id).toBe("t1");
+    expect(rows[1]?.revoked_at).toEqual(exp);
+
+    const { sql, values } = fake.captured[0]!;
+    const compact = sql.replace(/\s+/g, " ").trim();
+    expect(compact).toContain("FROM nocturne.archive_share_tokens");
+    expect(compact).toContain("WHERE user_id = $1");
+    expect(compact).toContain("ORDER BY created_at DESC");
+    // We never select token_hash — the shape must carry only metadata.
+    expect(compact).not.toContain("token_hash");
+    expect(values).toEqual(["uid-1"]);
   });
 });
 
