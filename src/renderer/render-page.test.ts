@@ -86,6 +86,8 @@ describe('renderPage — all specs', () => {
     'executive-broadsheet',
     'quiet-ledger',
     'guji-classical',
+    'front-page-daily',
+    'keynote-sheet',
   ] as const;
 
   for (const id of specIds) {
@@ -427,10 +429,140 @@ describe('chrome + provenance', () => {
 describe('spec schema sanity (loads cleanly before render)', () => {
   test('every spec in src/renderer/specs parses', async () => {
     const specs = await loadSpecs(SPECS_DIR);
-    expect(specs.size).toBe(3);
+    expect(specs.size).toBe(5);
     for (const spec of specs.values()) {
       const parsed = AestheticSpecSchema.safeParse(spec);
       expect(parsed.success).toBe(true);
     }
+  });
+});
+
+describe('page-sheet wrapper', () => {
+  test('body has orientation class derived from spec.print.orientation', async () => {
+    const specs = await loadSpecs(SPECS_DIR);
+    const portraitHtml = renderPage(
+      buildBrief('executive-broadsheet'),
+      specs.get('executive-broadsheet')!,
+      CTX,
+    );
+    expect(portraitHtml).toMatch(
+      /<body[^>]*class="[^"]*\borientation-portrait\b/,
+    );
+
+    const landscapeHtml = renderPage(
+      buildBrief('guji-classical'),
+      specs.get('guji-classical')!,
+      CTX,
+    );
+    expect(landscapeHtml).toMatch(
+      /<body[^>]*class="[^"]*\borientation-landscape\b/,
+    );
+  });
+
+  test('content is wrapped in .page-sheet > .page-sheet-inner', async () => {
+    const specs = await loadSpecs(SPECS_DIR);
+    const html = renderPage(
+      buildBrief('executive-broadsheet'),
+      specs.get('executive-broadsheet')!,
+      CTX,
+    );
+    expect(html).toContain('<div class="page-sheet"');
+    expect(html).toContain('<div class="page-sheet-inner">');
+  });
+
+  test('--sheet-margin token mirrors spec.print.margin_mm', async () => {
+    const specs = await loadSpecs(SPECS_DIR);
+    const html = renderPage(
+      buildBrief('front-page-daily'),
+      specs.get('front-page-daily')!,
+      CTX,
+    );
+    // front-page-daily.json declares margin_mm: 16.
+    expect(html).toContain('--sheet-margin: 16mm;');
+  });
+});
+
+describe('front-page-daily specifics', () => {
+  test('masthead_banner replaces Hero (no .masthead, yes .masthead-banner)', async () => {
+    const specs = await loadSpecs(SPECS_DIR);
+    const html = renderPage(
+      buildBrief('front-page-daily'),
+      specs.get('front-page-daily')!,
+      CTX,
+    );
+    expect(html).toContain('class="masthead-banner"');
+    expect(html).toContain('class="masthead-nameplate"');
+    // The generic Hero-emitted "masthead" strip must NOT be present —
+    // the nameplate takes its place entirely.
+    expect(html).not.toMatch(/<header class="masthead"/);
+  });
+
+  test('dominant-lead adds .is-dominant to the first priority', async () => {
+    const specs = await loadSpecs(SPECS_DIR);
+    const html = renderPage(
+      buildBrief('front-page-daily'),
+      specs.get('front-page-daily')!,
+      CTX,
+    );
+    expect(html).toContain('class="priority-item is-hero is-dominant"');
+  });
+
+  test('truncates top_priorities to 1 per overflow_strategy', async () => {
+    const specs = await loadSpecs(SPECS_DIR);
+    const spec = specs.get('front-page-daily')!;
+    // FIXTURE_BASE has 3 priorities; front-page-daily caps at 1.
+    const html = renderPage(buildBrief('front-page-daily'), spec, CTX);
+    expect(html).toContain('Ship the renderer PR');
+    expect(html).not.toContain('Call Mom');
+    expect(html).toContain('+2 omitted');
+  });
+});
+
+describe('keynote-sheet specifics', () => {
+  test('single-only adds .is-only to the first priority', async () => {
+    const specs = await loadSpecs(SPECS_DIR);
+    const spec = specs.get('keynote-sheet')!;
+    const brief = DailyBriefBlock.parse({
+      content_type: 'daily_brief_v1',
+      title: 'Q1 Wrap',
+      spec_id: 'keynote-sheet',
+      top_priorities: [{ title: 'Launched NyxID integration' }],
+    });
+    const html = renderPage(brief, spec, CTX);
+    expect(html).toContain('class="priority-item is-only"');
+  });
+
+  test('truncate-hard suppresses the overflow coda', async () => {
+    const specs = await loadSpecs(SPECS_DIR);
+    const spec = specs.get('keynote-sheet')!;
+    const brief = DailyBriefBlock.parse({
+      content_type: 'daily_brief_v1',
+      title: 'Too many points',
+      spec_id: 'keynote-sheet',
+      top_priorities: Array.from({ length: 6 }, (_, i) => ({
+        title: `Point ${i + 1}`,
+      })),
+    });
+    const html = renderPage(brief, spec, CTX);
+    expect(html).toContain('Point 1');
+    expect(html).toContain('Point 3');
+    expect(html).not.toContain('Point 4');
+    // truncate-hard = no "+N omitted" strip.
+    expect(html).not.toContain('omitted');
+  });
+
+  test('body has orientation-landscape', async () => {
+    const specs = await loadSpecs(SPECS_DIR);
+    const html = renderPage(
+      DailyBriefBlock.parse({
+        content_type: 'daily_brief_v1',
+        title: 'Keynote',
+        spec_id: 'keynote-sheet',
+        top_priorities: [{ title: 'One' }],
+      }),
+      specs.get('keynote-sheet')!,
+      CTX,
+    );
+    expect(html).toMatch(/<body[^>]*class="[^"]*\borientation-landscape\b/);
   });
 });

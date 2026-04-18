@@ -14,17 +14,22 @@ import PRINT_CSS from './print.css' with { type: 'text' };
 import SPEC_CSS_EXECUTIVE_BROADSHEET from './specs/executive-broadsheet.css' with { type: 'text' };
 import SPEC_CSS_QUIET_LEDGER from './specs/quiet-ledger.css' with { type: 'text' };
 import SPEC_CSS_GUJI_CLASSICAL from './specs/guji-classical.css' with { type: 'text' };
+import SPEC_CSS_FRONT_PAGE_DAILY from './specs/front-page-daily.css' with { type: 'text' };
+import SPEC_CSS_KEYNOTE_SHEET from './specs/keynote-sheet.css' with { type: 'text' };
 
 const SPEC_CSS: Record<string, string> = {
   'executive-broadsheet': SPEC_CSS_EXECUTIVE_BROADSHEET,
   'quiet-ledger': SPEC_CSS_QUIET_LEDGER,
   'guji-classical': SPEC_CSS_GUJI_CLASSICAL,
+  'front-page-daily': SPEC_CSS_FRONT_PAGE_DAILY,
+  'keynote-sheet': SPEC_CSS_KEYNOTE_SHEET,
 };
 
 import { type AestheticSpec, type BlockName } from '../schema/aesthetic-spec.ts';
 import type { DailyBrief } from '../schema/daily-brief.ts';
 import { CHROME_SCRIPT, Chrome, ProvenanceStrip, type ChromeCtx } from './blocks/Chrome.tsx';
 import { Hero } from './blocks/Hero.tsx';
+import { Masthead } from './blocks/Masthead.tsx';
 import { Notes } from './blocks/Notes.tsx';
 import { PriorityList } from './blocks/PriorityList.tsx';
 import { PullQuote } from './blocks/PullQuote.tsx';
@@ -57,6 +62,7 @@ const BLOCK_COMPONENTS: Record<
   timeline: ({ brief, spec }) => <Timeline brief={brief} spec={spec} />,
   watchlist: ({ brief, spec }) => <Watchlist brief={brief} spec={spec} />,
   notes: ({ brief, spec }) => <Notes brief={brief} spec={spec} />,
+  masthead_banner: ({ brief }) => <Masthead brief={brief} />,
 };
 
 // The `Record<BlockName, ...>` typing above forces TS to fail if a new name
@@ -126,6 +132,10 @@ function buildRootVariables(spec: AestheticSpec): string {
   );
   lines.push(`  --max-width: ${spec.spacing.max_width}px;`);
   lines.push(`  --writing-mode: ${spec.writing_mode};`);
+  // `--sheet-margin` drives `.page-sheet-inner { padding }` in base.css.
+  // Value mirrors `spec.print.margin_mm` so the on-screen sheet padding
+  // exactly matches the print margin the browser will honor via @page.
+  lines.push(`  --sheet-margin: ${spec.print.margin_mm}mm;`);
 
   if (spec.severity_style === 'colored-dot' && spec.severity_colors) {
     lines.push(`  --severity-high: ${spec.severity_colors.high};`);
@@ -200,9 +210,16 @@ export function renderPage(
 
   const rootVars = buildRootVariables(spec);
 
-  // Hero is mandatory (title is required by schema). It lives outside the
-  // zone grid so it always anchors the top of the page.
-  const heroHtml = (<Hero brief={brief} createdAt={ctx.created_at} />).toString();
+  // Hero anchors the top of the page for specs that don't declare their
+  // own `masthead_banner` block. When a spec does (e.g. front-page-daily
+  // with its newspaper nameplate), that block replaces Hero entirely so
+  // we don't render two competing headers.
+  const hasMasthead = zoneEntries.some(([, blocks]) =>
+    blocks.includes('masthead_banner'),
+  );
+  const heroHtml = hasMasthead
+    ? ''
+    : (<Hero brief={brief} createdAt={ctx.created_at} />).toString();
 
   const zonesHtml = zoneEntries
     .map(([name, blocks]) =>
@@ -226,18 +243,23 @@ export function renderPage(
   <style data-nocturne="spec" data-spec-id="${escapeAttr(spec.id)}">${SPEC_CSS[spec.id] ?? ''}</style>
   <style data-nocturne="print">${PRINT_CSS}</style>`;
 
-  const bodyClass = `${wmClass} ${specClass}`;
+  const orientationClass = `orientation-${spec.print.orientation}`;
+  const bodyClass = `${wmClass} ${specClass} ${orientationClass}`;
 
   const html = `<!doctype html>
 <html lang="${escapeAttr(lang)}" dir="${escapeAttr(dir)}" class="${escapeAttr(wmClass)}" data-writing-mode="${escapeAttr(spec.writing_mode)}">
 <head>${head}
 </head>
 <body class="${escapeAttr(bodyClass)}">
-  <div class="page">
-    ${heroHtml}
-    <div class="layout ${escapeAttr(zoneCountClass)}">${zonesHtml}</div>
-    ${chromeHtml}
-    ${provenanceHtml}
+  <div class="page-sheet" data-sheet-index="1">
+    <div class="page-sheet-inner">
+      <div class="page">
+        ${heroHtml}
+        <div class="layout ${escapeAttr(zoneCountClass)}">${zonesHtml}</div>
+        ${chromeHtml}
+        ${provenanceHtml}
+      </div>
+    </div>
   </div>
   <script>${CHROME_SCRIPT}</script>
 </body>

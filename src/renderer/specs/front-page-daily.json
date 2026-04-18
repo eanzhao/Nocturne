@@ -1,0 +1,40 @@
+{
+  "id": "front-page-daily",
+  "name": "Front Page Daily",
+  "description": "Classic newspaper front-page. Use for weekly reviews, monthly retros, milestone announcements — any time ONE story dominates and everything else is supporting detail.",
+  "writing_mode": "horizontal-lr",
+  "fonts": {
+    "headline": "'Playfair Display', 'ET Book', 'Times New Roman', Georgia, serif",
+    "body":     "'Source Serif Pro', 'Tiempos Text', Georgia, serif",
+    "label":    "'Söhne Breit', 'Inter', sans-serif",
+    "mono":     "'IBM Plex Mono', monospace"
+  },
+  "palette": {
+    "bg":       "#fefdf8",
+    "fg":       "#111111",
+    "muted":    "#555555",
+    "accent":   "#a51818",
+    "hairline": "#111111"
+  },
+  "spacing": {
+    "base": 4,
+    "column_gap": 18,
+    "column_count_desktop": 3,
+    "max_width": 780
+  },
+  "hero_priority_treatment": "dominant-lead",
+  "block_zones": {
+    "masthead": ["masthead_banner"],
+    "lead":     ["hero_quote", "top_priorities"],
+    "columns":  ["timeline", "watchlist", "notes"]
+  },
+  "overflow_strategy": {
+    "top_priorities": { "max": 1, "on_overflow": "truncate-with-count" },
+    "timeline":       { "max": 5, "on_overflow": "truncate-with-count" },
+    "watchlist":      { "max": 4, "on_overflow": "truncate-with-count" },
+    "notes":          { "max": 3, "on_overflow": "truncate-with-count" }
+  },
+  "pull_quote_role": "epigraph",
+  "severity_style": "bracketed-text",
+  "print": { "paper": "A4", "orientation": "portrait", "margin_mm": 16 }
+}

@@ -2,29 +2,65 @@ import { describe, expect, it } from "bun:test";
 import { loadLocalConfig } from "./config.ts";
 
 describe("loadLocalConfig", () => {
-  it("accepts an empty env; apiKey is undefined when not set", () => {
-    // NyxID-only flow is allowed: no env vars required at config-load time.
+  it("returns defaults when both env and file are empty", () => {
     const cfg = loadLocalConfig({});
     expect(cfg.apiKey).toBeUndefined();
     expect(cfg.baseUrl).toBe("https://api.openai.com/v1");
     expect(cfg.model).toBe("gpt-4o-mini");
     expect(cfg.outDir).toBe("./out");
-  });
-
-  it("returns the api key when set", () => {
-    const cfg = loadLocalConfig({ NOCTURNE_OPENAI_API_KEY: "sk-x" });
-    expect(cfg.apiKey).toBe("sk-x");
-  });
-
-  it("honors overrides", () => {
-    const cfg = loadLocalConfig({
-      NOCTURNE_OPENAI_API_KEY: "k",
-      NOCTURNE_OPENAI_BASE_URL: "https://openrouter.ai/api/v1",
-      NOCTURNE_OPENAI_MODEL: "google/gemini-2.5-flash",
-      NOCTURNE_OUT_DIR: "/tmp/nocturne-pages",
+    expect(cfg.sources).toEqual({
+      model: "default",
+      base_url: "default",
+      out_dir: "default",
+      api_key: "default",
     });
-    expect(cfg.baseUrl).toBe("https://openrouter.ai/api/v1");
-    expect(cfg.model).toBe("google/gemini-2.5-flash");
-    expect(cfg.outDir).toBe("/tmp/nocturne-pages");
+  });
+
+  it("file values are used when env is empty", () => {
+    const cfg = loadLocalConfig(
+      {},
+      {
+        model: "deepseek-chat",
+        base_url: "https://nyx.example.com/gw/v1",
+        out_dir: "/tmp/nocturne",
+        api_key: "sk-from-file",
+      },
+    );
+    expect(cfg.model).toBe("deepseek-chat");
+    expect(cfg.baseUrl).toBe("https://nyx.example.com/gw/v1");
+    expect(cfg.outDir).toBe("/tmp/nocturne");
+    expect(cfg.apiKey).toBe("sk-from-file");
+    expect(cfg.sources).toEqual({
+      model: "file",
+      base_url: "file",
+      out_dir: "file",
+      api_key: "file",
+    });
+  });
+
+  it("env wins over file", () => {
+    const cfg = loadLocalConfig(
+      {
+        NOCTURNE_OPENAI_MODEL: "gpt-4o",
+        NOCTURNE_OPENAI_API_KEY: "sk-env",
+      },
+      {
+        model: "deepseek-chat",
+        api_key: "sk-from-file",
+      },
+    );
+    expect(cfg.model).toBe("gpt-4o");
+    expect(cfg.apiKey).toBe("sk-env");
+    expect(cfg.sources.model).toBe("env");
+    expect(cfg.sources.api_key).toBe("env");
+  });
+
+  it("empty-string env values are treated as unset (file still wins)", () => {
+    const cfg = loadLocalConfig(
+      { NOCTURNE_OPENAI_API_KEY: "" },
+      { api_key: "sk-from-file" },
+    );
+    expect(cfg.apiKey).toBe("sk-from-file");
+    expect(cfg.sources.api_key).toBe("file");
   });
 });

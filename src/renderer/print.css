@@ -43,8 +43,27 @@
   html, body {
     background: #ffffff !important; /* printers don't need the tinted ground */
     color: #000000;
+    margin: 0;
+    padding: 0;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+
+  /* `.page-sheet` is a screen device (shadow, fixed width, desk
+   * background). In print the browser's @page rules own geometry, so
+   * we unwind the sheet styling back to a plain container that fills
+   * the page margin box. */
+  .page-sheet {
+    width: auto !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    transform: none !important;
+  }
+  .page-sheet-inner {
+    padding: 0 !important;
+    min-height: auto !important;
   }
 
   /* Keep the tinted paper colors when the spec class opts in. Each spec
@@ -100,6 +119,22 @@
 .spec-guji-classical {
   page: guji-classical;
 }
+
+/* front-page-daily: classic newspaper front page, A4 portrait, 16mm margin. */
+@page front-page-daily {
+  size: A4 portrait;
+  margin: 16mm;
+}
+.spec-front-page-daily { page: front-page-daily; }
+
+/* keynote-sheet: single-slide A4 landscape, 20mm margin. Content beyond
+ * one page is truncated by `overflow: hidden` on the spec's container; the
+ * browser prints exactly one page. */
+@page keynote-sheet {
+  size: A4 landscape;
+  margin: 20mm;
+}
+.spec-keynote-sheet { page: keynote-sheet; }
 
 @media print {
   .spec-guji-classical {

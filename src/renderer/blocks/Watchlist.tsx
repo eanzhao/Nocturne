@@ -40,6 +40,9 @@ const severityRenderers: Record<
       </span>
     );
   },
+  // `none` — spec suppresses severity rendering entirely (keynote-sheet).
+  // Returning null drops the indicator without reshaping the item markup.
+  none: () => null,
 };
 
 /**

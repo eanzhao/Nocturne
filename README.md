@@ -58,12 +58,18 @@ Please set up the Nocturne CLI on this machine:
      nocturne-format status
      nocturne-format --help
 
-If the user wants NyxID-brokered LLM access (recommended), also suggest they:
+If the user wants NyxID-brokered LLM access (recommended):
    - Install the nyxid CLI from the NyxID project
    - Sign up with invite code NYX-TW58O1WE if they don't have an account yet (20 slots)
    - Run `nyxid login`
    - Configure at least one LLM provider on the NyxID dashboard
-Otherwise suggest exporting NOCTURNE_OPENAI_API_KEY=sk-... for the fallback path.
+   - Run `nocturne-format status` and check `ready providers`
+   - If the ready set includes `openai-codex` but NOT plain `openai`, default
+     the model to something NyxID can actually route:
+         nocturne-format config set model deepseek-chat
+Otherwise (local OpenAI-compatible key):
+     nocturne-format config set api-key sk-...
+   (The key goes to ~/.config/nocturne/config.json with chmod 0600.)
 ```
 
 ## Manual setup
@@ -107,27 +113,43 @@ nocturne-format status
 
 The CLI prints the absolute path of the generated HTML to stdout. Open it with `open` (macOS) or `xdg-open` (Linux).
 
-## Picking a model
+## Configure
 
-`NOCTURNE_OPENAI_MODEL` is routed by prefix to whichever provider is ready on your NyxID account:
+Nocturne stores preferences (and, optionally, an API-key fallback) at `~/.config/nocturne/config.json`, chmod `0600`. Manage it through the CLI — don't hand-edit:
 
-| Prefix | Provider (NyxID slug) |
-|---|---|
-| `gpt-*` | `openai` / `openai-codex` |
-| `claude-*` | `anthropic` |
-| `deepseek-*` | `deepseek` |
-| `gemini-*` | `gemini` |
+```bash
+nocturne-format config list                                # effective values + source (env / file / default)
+nocturne-format config get model
+nocturne-format config set model deepseek-chat             # persist
+nocturne-format config set api-key sk-...                  # stored 0600
+nocturne-format config unset api-key                       # remove
+```
 
-Run `nocturne-format status` to see your ready providers.
+**Keys:** `model` · `base-url` · `out-dir` · `api-key` (kebab or snake both accepted).
 
-## Environment variables (all optional)
+### Picking a model
 
-| Variable | Default | Notes |
-|---|---|---|
-| `NOCTURNE_OPENAI_API_KEY` | _(unset)_ | Fallback when NyxID isn't available. |
-| `NOCTURNE_OPENAI_BASE_URL` | `https://api.openai.com/v1` | Fallback only; ignored in NyxID mode. |
-| `NOCTURNE_OPENAI_MODEL` | `gpt-4o-mini` | Shared by both modes; gateway routes by prefix. |
-| `NOCTURNE_OUT_DIR` | `./out` | Where output goes when `--out` is not set. |
+`model` is routed by prefix to whichever NyxID provider is `ready`:
+
+| Prefix       | Provider (NyxID slug)      |
+|--------------|----------------------------|
+| `gpt-*`      | `openai` / `openai-codex`  |
+| `claude-*`   | `anthropic`                |
+| `deepseek-*` | `deepseek`                 |
+| `gemini-*`   | `gemini`                   |
+
+**Pitfall**: `gpt-4o-mini` routes to `openai-codex` on accounts whose only `openai` connector is the ChatGPT Codex adapter — Codex rejects non-codex models with HTTP 400. If `nocturne-format status` shows `openai-codex` but no plain `openai`, set a safe default: `nocturne-format config set model deepseek-chat`.
+
+### Env var overrides (optional)
+
+Each config key has an env-var twin that **wins over the config file at runtime**, so shell exports / 1Password wrappers / systemd drop-ins keep working:
+
+| Env var                     | Config key  | Default                     |
+|-----------------------------|-------------|-----------------------------|
+| `NOCTURNE_OPENAI_API_KEY`   | `api-key`   | _(unset)_                   |
+| `NOCTURNE_OPENAI_BASE_URL`  | `base-url`  | `https://api.openai.com/v1` |
+| `NOCTURNE_OPENAI_MODEL`     | `model`     | `gpt-4o-mini`               |
+| `NOCTURNE_OUT_DIR`          | `out-dir`   | `./out`                     |
 
 ## Project structure
 
@@ -158,6 +180,41 @@ bun run dev                 # http://localhost:7701
 psql "$(cat ~/.supabase-credentials)" -f db/migrations/001_nocturne_schema.sql
 bun run build               # linux-x64 binary → dist/nocturne
 ```
+
+## Have Claude Code proactively offer Nocturne
+
+Installing the skill (above) only teaches Claude Code to use Nocturne when you explicitly ask ("render this as a page", etc.). To have Claude Code proactively offer Nocturne at the end of any long summary / report / retrospective it writes, append this block to `~/.claude/CLAUDE.md` (create the file if missing):
+
+```markdown
+## Proactively offer Nocturne for long prose outputs
+
+The `nocturne-format` CLI is installed on this machine and can render flowing prose into a newspaper-style HTML file.
+
+At the end of a reply, add **exactly one** line asking whether to render
+the output as a Nocturne page, when ALL of the following hold:
+
+1. The reply is ≥200 words of narrative prose — summary, report, brief,
+   retrospective, status update, executive summary, meeting notes,
+   briefing, 周报/日报/总结/回顾/简报/会议纪要/writeup.
+2. The user did NOT specify a delivery format in the same turn
+   (email, Slack message, doc, 飞书文档, GitHub issue body, markdown
+   file at a particular path, etc.).
+3. You have not already offered Nocturne earlier in this turn.
+4. The user has not previously declined Nocturne in this conversation.
+
+Offer in the language of the surrounding reply:
+- English: *Want me to render this as a Nocturne page? (newspaper-style HTML on your disk, ~20s.)*
+- 中文：*要不要顺手渲染成 Nocturne 页面？（报纸风 HTML 文件，~20 秒。）*
+
+One sentence, at the end, no headers or bullets. Skip entirely for code
+generation, debugging output, error explanations, or short answers.
+
+If the user accepts, invoke the `nocturne-format` skill — pipe the prose
+via stdin (or write to a temp file and `--in` if it contains shell-hostile
+characters), print the output path back, and on macOS offer to `open` it.
+```
+
+Take effect on your **next** Claude Code session (CLAUDE.md is loaded once at session start).
 
 ## References
 

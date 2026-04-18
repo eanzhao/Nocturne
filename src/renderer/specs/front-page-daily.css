@@ -1,0 +1,174 @@
+/*
+ * Per-spec CSS for `front-page-daily`.
+ *
+ * Classic newspaper front page: giant nameplate at top, one dominant
+ * headline story across two thirds of the page, a three-column bar of
+ * supporting detail at the bottom. Pure white + black + one vermilion
+ * accent, no photos — the whole voice is typography.
+ *
+ * Shared typography/chrome still comes from base.css; this file owns the
+ * visual grammar that makes this spec distinct.
+ */
+
+/* ---------- severity (bracketed text, scoped to this spec) ---------- */
+.sev-bracket {
+  font-family: var(--font-mono);
+  font-size: 0.75em;
+  color: var(--accent);
+  letter-spacing: 0.06em;
+  margin-right: 0.35em;
+}
+
+/* ---------- Masthead nameplate ---------- */
+
+.spec-front-page-daily .masthead-banner {
+  text-align: center;
+  margin-bottom: calc(var(--space-base) * 4);
+}
+.spec-front-page-daily .masthead-rule {
+  height: 2px;
+  background: var(--fg);
+  margin: calc(var(--space-base) * 2) 0;
+}
+.spec-front-page-daily .masthead-rule-double {
+  height: 4px;
+  background: var(--fg);
+  box-shadow: 0 -2px 0 0 var(--bg), 0 -3px 0 0 var(--fg);
+  margin-top: calc(var(--space-base) * 3);
+}
+.spec-front-page-daily .masthead-dateline {
+  font-family: var(--font-label);
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.spec-front-page-daily .masthead-nameplate {
+  font-family: var(--font-headline);
+  font-weight: 900;
+  font-size: clamp(2.4rem, 8vw, 4.4rem);
+  line-height: 1;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  font-variant: small-caps;
+  margin: calc(var(--space-base) * 2) 0 calc(var(--space-base) * 1);
+  color: var(--fg);
+}
+.spec-front-page-daily .masthead-tagline {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 1rem;
+  color: var(--muted);
+  max-width: 52ch;
+  margin: 0 auto;
+}
+
+/* ---------- Layout: two stacked bands (lead / columns) ---------- */
+/*
+ * `block_zones` declares three zones: `masthead`, `lead`, `columns`.
+ * The renderer emits them as .zone-masthead / .zone-lead / .zone-columns
+ * in order inside a 3-zone grid. We reshape that grid into a vertical
+ * stack since a real newspaper front page flows top-to-bottom, not
+ * left/center/right.
+ */
+.spec-front-page-daily .layout.layout-zones-3 {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "masthead"
+    "lead"
+    "columns";
+  gap: calc(var(--space-base) * 4);
+}
+.spec-front-page-daily .zone-masthead { grid-area: masthead; }
+.spec-front-page-daily .zone-lead { grid-area: lead; }
+.spec-front-page-daily .zone-columns {
+  grid-area: columns;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: calc(var(--space-base) * 5);
+  padding-top: calc(var(--space-base) * 3);
+  border-top: 1px solid var(--hairline);
+}
+
+/* ---------- Lead story (dominant-lead treatment on first priority) --- */
+
+.spec-front-page-daily .priority-list-section .block-label {
+  /* The lead story is visually the page — the "Top Priorities" label is
+   * redundant noise at this scale. Hide it; the treatment is self-evident. */
+  display: none;
+}
+.spec-front-page-daily .priority-item.is-dominant {
+  border-top: none;
+  padding-top: 0;
+}
+.spec-front-page-daily .priority-item.is-dominant .num {
+  display: none;
+}
+.spec-front-page-daily .priority-item.is-dominant .title {
+  font-family: var(--font-headline);
+  font-weight: 900;
+  font-size: clamp(1.8rem, 4.2vw, 2.75rem);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  margin-top: 0;
+  color: var(--fg);
+}
+.spec-front-page-daily .priority-item.is-dominant .why {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 1.15rem;
+  line-height: 1.45;
+  color: var(--fg);
+  margin-top: calc(var(--space-base) * 3);
+  padding: calc(var(--space-base) * 2) 0;
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+  column-count: 2;
+  column-gap: calc(var(--space-base) * 6);
+}
+.spec-front-page-daily .priority-item.is-dominant .action {
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-top: calc(var(--space-base) * 3);
+}
+
+/* ---------- Hero quote (epigraph below the lead) ---------- */
+.spec-front-page-daily .hero-quote,
+.spec-front-page-daily .pull-quote {
+  text-align: center;
+  font-family: var(--font-headline);
+  font-size: 1.1rem;
+  font-style: italic;
+  border: none;
+  padding: 0;
+  margin: calc(var(--space-base) * 2) auto calc(var(--space-base) * 4);
+  max-width: 48ch;
+  color: var(--muted);
+}
+
+/* ---------- Supporting columns: timeline / watchlist / notes ---------- */
+
+.spec-front-page-daily .zone-columns .block-label {
+  font-family: var(--font-label);
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  color: var(--fg);
+  border-bottom: 1px solid var(--hairline);
+  padding-bottom: calc(var(--space-base) * 1);
+  margin-bottom: calc(var(--space-base) * 2);
+}
+
+.spec-front-page-daily .timeline {
+  font-size: 0.85rem;
+  grid-template-columns: auto 1fr;
+  gap: calc(var(--space-base) * 1) calc(var(--space-base) * 3);
+}
+.spec-front-page-daily .watchlist-item .label { font-weight: 600; }
+.spec-front-page-daily .notes-item .body { font-size: 0.88rem; line-height: 1.45; }
+
+/* Muted accent everywhere accent appears on this spec */
+.spec-front-page-daily a { color: var(--accent); }

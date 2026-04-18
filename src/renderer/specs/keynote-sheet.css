@@ -1,0 +1,150 @@
+/*
+ * Per-spec CSS for `keynote-sheet`.
+ *
+ * Single A4 landscape page. The whole page is ONE slide: big headline on
+ * the left, 2-3 supporting beats on the right. Sans-serif, monochrome
+ * with one blue accent — the opposite voice of the broadsheet specs.
+ *
+ * Constraint: exactly one page. `overflow: hidden` on the page sheet
+ * enforces this at the CSS level; the planner is supposed to compress
+ * content to fit, per planner-prompt.ts.
+ */
+
+/* severity_style = "none" — render nothing. The rule exists so per-spec
+ * CSS files have symmetric coverage of severity_style variants. */
+.spec-keynote-sheet .sev-dot,
+.spec-keynote-sheet .sev-bracket,
+.spec-keynote-sheet .sev-mark {
+  display: none;
+}
+
+/* ---------- Page frame: strict single-slide, hard overflow ---------- */
+
+.spec-keynote-sheet .page-sheet {
+  /* A4 landscape, nothing grows. Content that overflows is cropped. */
+  overflow: hidden;
+}
+.spec-keynote-sheet .page-sheet-inner {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- Hero → oversized left-side title ---------- */
+
+.spec-keynote-sheet .masthead {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+.spec-keynote-sheet .masthead .date-label {
+  font-family: var(--font-label);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+  margin-bottom: calc(var(--space-base) * 2);
+}
+.spec-keynote-sheet .masthead .title {
+  font-family: var(--font-headline);
+  font-weight: 800;
+  font-size: clamp(2.4rem, 5.5vw, 4.2rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+.spec-keynote-sheet .masthead .dek {
+  font-family: var(--font-body);
+  font-size: 1.1rem;
+  color: var(--muted);
+  margin-top: calc(var(--space-base) * 2);
+  max-width: 22em;
+  font-style: normal;
+}
+
+/* ---------- Layout: two columns (lede | pillars) ---------- */
+/*
+ * Two zones → override base.css's `.layout-zones-2` (which doesn't
+ * currently exist) with a direct 40/60 split. The hero masthead stays
+ * above both columns because the renderer emits it outside the zones.
+ */
+.spec-keynote-sheet .layout {
+  display: grid;
+  grid-template-columns: 40% 60%;
+  grid-template-areas: "lede pillars";
+  gap: calc(var(--space-base) * 6);
+  flex: 1 1 auto;
+  align-items: start;
+  padding-top: calc(var(--space-base) * 4);
+  margin-top: calc(var(--space-base) * 4);
+  border-top: 1px solid var(--hairline);
+}
+.spec-keynote-sheet .zone-lede { grid-area: lede; }
+.spec-keynote-sheet .zone-pillars { grid-area: pillars; }
+
+/* ---------- Lede column: summary only (quote/etc. suppressed) ---------- */
+.spec-keynote-sheet .summary {
+  font-size: 1.05rem;
+  color: var(--muted);
+  font-family: var(--font-body);
+  max-width: none;
+}
+
+/* ---------- Pillars column: up to 3 priority "cards" ---------- */
+.spec-keynote-sheet .priority-list-section .block-label { display: none; }
+
+.spec-keynote-sheet .priority-list {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-base) * 4);
+}
+.spec-keynote-sheet .priority-item {
+  border-top: none;
+  padding-top: 0;
+  padding-left: calc(var(--space-base) * 5);
+  position: relative;
+}
+.spec-keynote-sheet .priority-item .num {
+  position: absolute;
+  top: 0.25em;
+  left: 0;
+  font-family: var(--font-label);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0;
+}
+.spec-keynote-sheet .priority-item .title {
+  font-family: var(--font-headline);
+  font-weight: 700;
+  font-size: 1.35rem;
+  letter-spacing: -0.005em;
+  line-height: 1.2;
+  margin-top: 0;
+  color: var(--fg);
+}
+.spec-keynote-sheet .priority-item.is-only .title {
+  /* single-only mode: planner delivered exactly one pillar; make it bigger. */
+  font-size: 1.75rem;
+}
+.spec-keynote-sheet .priority-item .why {
+  font-family: var(--font-body);
+  color: var(--muted);
+  font-size: 0.95rem;
+  margin-top: calc(var(--space-base) * 1);
+}
+.spec-keynote-sheet .priority-item .action {
+  font-family: var(--font-label);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-top: calc(var(--space-base) * 2);
+}
+
+/* ---------- Chrome + provenance: quiet, mono ---------- */
+.spec-keynote-sheet .chrome-zone { border-top: 1px solid var(--hairline); }
+.spec-keynote-sheet .provenance-strip {
+  border-top: none;
+  justify-content: flex-end;
+  color: var(--muted);
+}
