@@ -104,8 +104,8 @@ async function makeKeypair(kid = "k1"): Promise<Keypair> {
 async function signFor(kp: Keypair, sub: string): Promise<string> {
   return new SignJWT({})
     .setProtectedHeader({ alg: "RS256", kid: kp.kid })
-    .setIssuer(config.NYXID_BASE_URL)
-    .setAudience("nocturne")
+    .setIssuer(config.NYXID_JWT_ISSUER)
+    .setAudience(config.NYXID_JWT_AUDIENCE)
     .setSubject(sub)
     .setIssuedAt()
     .setExpirationTime("60s")
@@ -402,7 +402,7 @@ describe("DELETE /u/share/:token_id", () => {
 });
 
 describe("IndexError mapping", () => {
-  test("createShareToken throwing IndexError(duplicate) → 500 duplicate_page_id", async () => {
+  test("createShareToken throwing IndexError(duplicate) → 500 share_token_conflict", async () => {
     const fake = installFakeSql();
     fake.setResponder(() => {
       throw new IndexError("duplicate", "simulated unique-violation");
@@ -415,6 +415,6 @@ describe("IndexError mapping", () => {
     });
 
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: "duplicate_page_id" });
+    expect(await res.json()).toEqual({ error: "share_token_conflict" });
   });
 });

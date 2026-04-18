@@ -34,6 +34,8 @@ const ENV_DEFAULTS: Record<string, string> = {
   CHRONO_STORAGE_BUCKET: "nocturne",
   NYXID_BASE_URL: "https://nyx-test.invalid",
   NYXID_JWKS_URL: "https://nyx-test.invalid/.well-known/jwks.json",
+  NYXID_JWT_ISSUER: "https://nyx-test.invalid",
+  NYXID_JWT_AUDIENCE: "nocturne",
   NYXID_SERVICE_SECRET:
     "0123456789abcdef0123456789abcdef0123456789abcdef",
   PAGE_ID_BYTES: "15",
@@ -53,8 +55,8 @@ beforeAll(async () => {
 // ---------------------------------------------------------------------------
 // Fixtures
 
-const ISSUER = process.env.NYXID_BASE_URL ?? "https://nyx-test.invalid";
-const AUDIENCE = "nocturne";
+const ISSUER = process.env.NYXID_JWT_ISSUER ?? "https://nyx-test.invalid";
+const AUDIENCE = process.env.NYXID_JWT_AUDIENCE ?? "nocturne";
 const USER_ID = "11111111-2222-3333-4444-555555555555";
 
 interface Keypair {
@@ -405,9 +407,24 @@ describe("nyxidAuth — static-bearer fallback", () => {
     expect(result.body).toEqual({ error: "missing_identity" });
   });
 
-  test("env set + matching bearer + no NyxID headers returns sentinel user", async () => {
-    const { stderr, result } = await runStaticBearerCase({
+  test("bearer set but FORCE unset: bypass disabled (fail-closed)", async () => {
+    // Matches the missing-NODE_ENV scenario in production — the bypass MUST
+    // stay closed unless FORCE=1 is explicit. Forgetting the flag fails safe.
+    const { result } = await runStaticBearerCase({
       env: { NOCTURNE_STATIC_BEARER: STATIC_BEARER },
+      headers: { authorization: `Bearer ${STATIC_BEARER}` },
+    });
+
+    expect(result.status).toBe(401);
+    expect(result.body).toEqual({ error: "missing_identity" });
+  });
+
+  test("bearer set + FORCE=1 + matching bearer returns sentinel user", async () => {
+    const { stderr, result } = await runStaticBearerCase({
+      env: {
+        NOCTURNE_STATIC_BEARER: STATIC_BEARER,
+        NOCTURNE_STATIC_BEARER_FORCE: "1",
+      },
       headers: { authorization: `Bearer ${STATIC_BEARER}` },
     });
 
@@ -416,9 +433,12 @@ describe("nyxidAuth — static-bearer fallback", () => {
     expect(stderr).toContain("auth: static bearer accepted");
   });
 
-  test("env set + wrong bearer falls through to 401 missing_identity", async () => {
+  test("bearer set + FORCE=1 + wrong bearer falls through to 401", async () => {
     const { result } = await runStaticBearerCase({
-      env: { NOCTURNE_STATIC_BEARER: STATIC_BEARER },
+      env: {
+        NOCTURNE_STATIC_BEARER: STATIC_BEARER,
+        NOCTURNE_STATIC_BEARER_FORCE: "1",
+      },
       headers: { authorization: "Bearer wrong-token" },
     });
 
@@ -426,10 +446,9 @@ describe("nyxidAuth — static-bearer fallback", () => {
     expect(result.body).toEqual({ error: "missing_identity" });
   });
 
-  test("production env + force off disables the static bearer path", async () => {
+  test("FORCE=0 disables the bypass even with a matching bearer", async () => {
     const { result } = await runStaticBearerCase({
       env: {
-        NODE_ENV: "production",
         NOCTURNE_STATIC_BEARER: STATIC_BEARER,
         NOCTURNE_STATIC_BEARER_FORCE: "0",
       },

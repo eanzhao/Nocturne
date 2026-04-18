@@ -9,9 +9,11 @@
  *                             from NyxID and not a header-spoofing client
  *
  * The middleware verifies the JWT against NyxID's JWKS (`NYXID_JWKS_URL`) and
- * asserts `payload.sub === userIdHeader`, `payload.iss === config.NYXID_BASE_URL`,
- * and `payload.aud === "nocturne"`. On success, `c.set('user_id', ...)`
- * exposes the verified id to downstream handlers.
+ * asserts `payload.sub === userIdHeader`, `payload.iss === config.NYXID_JWT_ISSUER`,
+ * and `payload.aud === config.NYXID_JWT_AUDIENCE`. Both issuer and audience
+ * must match NyxID's service-side config exactly — see `src/config.ts`.
+ * On success, `c.set('user_id', ...)` exposes the verified id to downstream
+ * handlers.
  *
  * JWKS cache strategy: 10-minute TTL + lazy invalidation on verification
  * failure. NyxID rotates signing keys; a cached JWKS that's missed a rotation
@@ -79,7 +81,6 @@ const defaultFetcher: JwksFetcher = async (url, signal) => {
 };
 
 let fetcher: JwksFetcher = defaultFetcher;
-const NOCTURNE_AUDIENCE = "nocturne";
 
 /**
  * Test-only hook. Swaps the JWKS fetcher so tests can serve a JWKS locally
@@ -149,8 +150,8 @@ async function verifyJwtWithLazyRefresh(
   const firstJwks = await getJwks(false);
   const firstKey: JWTVerifyGetKey = createLocalJWKSet(firstJwks);
   const verifyOptions = {
-    issuer: config.NYXID_BASE_URL,
-    audience: NOCTURNE_AUDIENCE,
+    issuer: config.NYXID_JWT_ISSUER,
+    audience: config.NYXID_JWT_AUDIENCE,
   } as const;
 
   try {
@@ -234,30 +235,47 @@ function isJwksUnavailable(err: unknown): boolean {
 }
 
 /**
+ * Static-bearer escape hatch (runbook: deploy/README.md).
+ *
+ * Active only when BOTH env vars are set:
+ *   - NOCTURNE_STATIC_BEARER        (≥32 chars, the shared secret)
+ *   - NOCTURNE_STATIC_BEARER_FORCE  = "1"
+ *
+ * The explicit FORCE flag is load-bearing: a missing NODE_ENV (common when
+ * `bun run` is launched without a systemd env file) MUST NOT open the
+ * bypass. Forgetting NODE_ENV=production should fail closed, never open.
+ * On match we log a warn-level JSON line every request so an audit can see
+ * exactly when it happened.
+ *
+ * Returns true if the bypass matched and the caller should short-circuit.
+ */
+function tryStaticBearer(c: Parameters<MiddlewareHandler>[0]): boolean {
+  const staticBearer = config.NOCTURNE_STATIC_BEARER;
+  if (staticBearer === undefined) return false;
+  if (config.NOCTURNE_STATIC_BEARER_FORCE !== "1") return false;
+
+  const authHeader = c.req.header("authorization") ?? "";
+  const m = authHeader.match(/^Bearer\s+(.+)$/i);
+  if (!m || m[1] !== staticBearer) return false;
+
+  console.warn(JSON.stringify({
+    level: "warn",
+    msg: "auth: static bearer accepted",
+    env: config.NODE_ENV,
+    path: c.req.path,
+  }));
+  c.set("user_id", "00000000-0000-0000-0000-000000000001");
+  return true;
+}
+
+/**
  * Strict NyxID auth. Rejects with 401/503 on any failure; on success,
  * `c.get('user_id')` returns the verified UUID string.
  */
 export const nyxidAuth: MiddlewareHandler = async (c, next) => {
-  const staticBearer = config.NOCTURNE_STATIC_BEARER;
-  if (staticBearer !== undefined) {
-    const allowInProd = config.NOCTURNE_STATIC_BEARER_FORCE === "1";
-    const envOk = config.NODE_ENV !== "production" || allowInProd;
-    if (envOk) {
-      const authHeader = c.req.header("authorization") ?? "";
-      const m = authHeader.match(/^Bearer\s+(.+)$/i);
-      if (m && m[1] === staticBearer) {
-        console.warn(JSON.stringify({
-          level: "warn",
-          msg: "auth: static bearer accepted",
-          env: config.NODE_ENV,
-          forced: allowInProd,
-          path: c.req.path,
-        }));
-        c.set("user_id", "00000000-0000-0000-0000-000000000001");
-        await next();
-        return;
-      }
-    }
+  if (tryStaticBearer(c)) {
+    await next();
+    return;
   }
 
   const userIdHeader = c.req.header(HDR_USER_ID);
@@ -286,26 +304,9 @@ export const nyxidAuth: MiddlewareHandler = async (c, next) => {
  *                             is almost certainly a client bug worth surfacing.
  */
 export const optionalNyxidAuth: MiddlewareHandler = async (c, next) => {
-  const staticBearer = config.NOCTURNE_STATIC_BEARER;
-  if (staticBearer !== undefined) {
-    const allowInProd = config.NOCTURNE_STATIC_BEARER_FORCE === "1";
-    const envOk = config.NODE_ENV !== "production" || allowInProd;
-    if (envOk) {
-      const authHeader = c.req.header("authorization") ?? "";
-      const m = authHeader.match(/^Bearer\s+(.+)$/i);
-      if (m && m[1] === staticBearer) {
-        console.warn(JSON.stringify({
-          level: "warn",
-          msg: "auth: static bearer accepted",
-          env: config.NODE_ENV,
-          forced: allowInProd,
-          path: c.req.path,
-        }));
-        c.set("user_id", "00000000-0000-0000-0000-000000000001");
-        await next();
-        return;
-      }
-    }
+  if (tryStaticBearer(c)) {
+    await next();
+    return;
   }
 
   const userIdHeader = c.req.header(HDR_USER_ID);

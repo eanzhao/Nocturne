@@ -104,8 +104,8 @@ async function makeKeypair(kid = "k1"): Promise<Keypair> {
 async function signFor(kp: Keypair, sub: string): Promise<string> {
   return new SignJWT({})
     .setProtectedHeader({ alg: "RS256", kid: kp.kid })
-    .setIssuer(config.NYXID_BASE_URL)
-    .setAudience("nocturne")
+    .setIssuer(config.NYXID_JWT_ISSUER)
+    .setAudience(config.NYXID_JWT_AUDIENCE)
     .setSubject(sub)
     .setIssuedAt()
     .setExpirationTime("60s")
@@ -382,7 +382,7 @@ describe("GET /u/{slug} — share-token branch", () => {
 });
 
 describe("GET /u/{slug} — IndexError mapping", () => {
-  test("listPagesForUser throwing IndexError(unavailable) → 503 index_unavailable", async () => {
+  test("listPagesForUser throwing IndexError(unavailable) → 503 archive_unavailable", async () => {
     const fake = installFakeSql();
     fake.setResponder(() => {
       throw new IndexError("unavailable", "simulated outage");
@@ -403,7 +403,7 @@ describe("GET /u/{slug} — IndexError mapping", () => {
     });
 
     expect(res.status).toBe(503);
-    expect(await res.json()).toEqual({ error: "index_unavailable" });
+    expect(await res.json()).toEqual({ error: "archive_unavailable" });
     __setJwksFetcherForTesting(null);
     __clearJwksCacheForTesting();
     __setClient__(null);
