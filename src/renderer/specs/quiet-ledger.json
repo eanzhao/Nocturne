@@ -1,0 +1,38 @@
+{
+  "id": "quiet-ledger",
+  "name": "Quiet Ledger",
+  "description": "Slow contemplative day. Use when the brief is mostly narrative prose, few priorities, no urgency, and value comes from careful reading rather than scanning.",
+  "writing_mode": "horizontal-lr",
+  "fonts": {
+    "headline": "'Lyon Text', 'Literata', Georgia, serif",
+    "body":     "'Lyon Text', 'Literata', Georgia, serif",
+    "label":    "'IBM Plex Mono', 'Courier Prime', monospace",
+    "mono":     "'IBM Plex Mono', monospace"
+  },
+  "palette": {
+    "bg":       "#faf6ea",
+    "fg":       "#272018",
+    "muted":    "#6b6052",
+    "accent":   null,
+    "hairline": "#272018"
+  },
+  "spacing": {
+    "base": 4,
+    "column_gap": 0,
+    "column_count_desktop": 1,
+    "max_width": 620
+  },
+  "hero_priority_treatment": "all-equal",
+  "block_zones": {
+    "single": ["hero_quote", "summary", "top_priorities", "timeline", "watchlist", "notes", "pull_quote"]
+  },
+  "overflow_strategy": {
+    "top_priorities": { "max": 5, "on_overflow": "truncate-with-count" },
+    "timeline":       { "max": 8, "on_overflow": "expand-column" },
+    "watchlist":      { "max": 6, "on_overflow": "truncate-with-count" },
+    "notes":          { "max": 4, "on_overflow": "truncate-with-count" }
+  },
+  "pull_quote_role": "coda",
+  "severity_style": "bracketed-text",
+  "print": { "paper": ["A4", "A5"], "orientation": "portrait", "margin_mm": 22 }
+}
