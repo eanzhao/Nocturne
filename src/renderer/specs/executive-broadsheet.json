@@ -1,0 +1,45 @@
+{
+  "id": "executive-broadsheet",
+  "name": "Executive Broadsheet",
+  "description": "Energetic editorial daily. Use for busy days with multiple priorities, data watch, and scheduled events. Default choice when in doubt.",
+  "writing_mode": "horizontal-lr",
+  "fonts": {
+    "headline": "'ET Book', 'Source Serif Pro', Georgia, serif",
+    "body":     "'Source Serif Pro', 'Tiempos Text', Georgia, serif",
+    "label":    "'Söhne Breit', 'Inter', sans-serif",
+    "mono":     "'IBM Plex Mono', monospace"
+  },
+  "palette": {
+    "bg":       "#f7f1df",
+    "fg":       "#1f1913",
+    "muted":    "#6b5e4d",
+    "accent":   "#b23d18",
+    "hairline": "#1f1913"
+  },
+  "spacing": {
+    "base": 4,
+    "column_gap": 32,
+    "column_count_desktop": 3,
+    "max_width": 1120
+  },
+  "hero_priority_treatment": "first-as-hero",
+  "block_zones": {
+    "left":   ["top_priorities"],
+    "right":  ["timeline", "watchlist", "notes"],
+    "center": ["hero_quote", "pull_quote"]
+  },
+  "overflow_strategy": {
+    "top_priorities": { "max": 5, "on_overflow": "truncate-with-count" },
+    "timeline":       { "max": 8, "on_overflow": "expand-column" },
+    "watchlist":      { "max": 6, "on_overflow": "truncate-with-count" },
+    "notes":          { "max": 4, "on_overflow": "truncate-with-count" }
+  },
+  "pull_quote_role": "hero-center",
+  "severity_style": "colored-dot",
+  "severity_colors": {
+    "high": "#b23d18",
+    "med":  "#6b5e4d",
+    "low":  "rgba(31,25,19,0.30)"
+  },
+  "print": { "paper": "A4", "orientation": "portrait", "margin_mm": 18 }
+}
