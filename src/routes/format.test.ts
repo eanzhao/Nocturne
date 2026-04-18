@@ -6,7 +6,7 @@
  * the route's sub-router directly — no full app.ts wiring required.
  *
  * The happy-path assertion proves the dual-write ordering:
- *   planner → nextSequence → renderPage → chrono.putObject → supabase.insertPage
+ *   nextSequence → planner → renderPage → chrono.putObject → supabase.insertPage
  */
 process.env.BASE_URL ??= "http://localhost:7701";
 process.env.DATABASE_URL ??= "postgres://localhost/test";

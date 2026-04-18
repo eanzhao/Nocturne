@@ -46,6 +46,7 @@ import {
 } from "../llm/gateway.ts";
 import {
   generatePage,
+  type GenerateResult,
   SpecNotFoundError,
   __resetSpecsForTesting as __resetPipelineSpecsForTesting,
 } from "../core/pipeline.ts";
@@ -141,7 +142,7 @@ formatRouter.post("/format", nyxidAuth, async (c) => {
   const owner_slug = ownerSlugFor(user_id);
 
   // --- Pipeline: planner → spec → render ------------------------------------
-  let generated: Awaited<ReturnType<typeof generatePage>>;
+  let generated: GenerateResult;
   try {
     generated = await generatePage(body.content, {
       planner: (content) => planDailyBrief(content, delegationToken),
