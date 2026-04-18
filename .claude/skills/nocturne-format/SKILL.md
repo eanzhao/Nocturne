@@ -21,54 +21,94 @@ Do NOT use for: Markdown preview, plain HTML, simple formatting, or anything tha
 
 The CLI picks its LLM source automatically:
 
-1. **NyxID (preferred)** — if `~/.nyxid/access_token` exists AND `/api/v1/llm/status` reports ≥1 ready provider, routes through the NyxID LLM gateway. The user logs in via `nyxid login` (separate CLI); Nocturne never owns login.
-2. **Direct OpenAI-compatible (fallback)** — if `NOCTURNE_OPENAI_API_KEY` is set.
+1. **NyxID (preferred)** — if `~/.nyxid/access_token` exists AND `/api/v1/llm/status` reports ≥1 ready provider, routes through the NyxID LLM gateway. The user logs in via `nyxid login` (separate CLI).
+2. **Direct OpenAI-compatible (fallback)** — if `api_key` is set (config file or `NOCTURNE_OPENAI_API_KEY` env var).
 3. Neither → the CLI errors with a hint pointing at both paths.
 
 Check which is live:
 
 ```bash
-bun run format status
+nocturne-format status
+# or the installed binary: nocturne-format status
 ```
 
-## Prerequisites
+## Config — `nocturne-format config`
 
-- Working directory must be a Nocturne checkout — `package.json` has `"name": "nocturne"` and `src/cli/format.ts` exists.
+The CLI has a first-class config store at `~/.config/nocturne/config.json` (chmod 0600). Use it instead of asking the user to edit dotfiles.
+
+```bash
+nocturne-format config list
+nocturne-format config get <key>
+nocturne-format config set <key> <value>
+nocturne-format config unset <key>
+```
+
+**Keys:** `model` · `base-url` · `out-dir` · `api-key` (kebab or snake accepted).
+
+Env vars with the same meaning override the file at runtime:
+
+| Env var                     | Config key  |
+| --------------------------- | ----------- |
+| `NOCTURNE_OPENAI_MODEL`     | `model`     |
+| `NOCTURNE_OPENAI_BASE_URL`  | `base-url`  |
+| `NOCTURNE_OPENAI_API_KEY`   | `api-key`   |
+| `NOCTURNE_OUT_DIR`          | `out-dir`   |
+
+### Model-prefix routing (NyxID mode)
+
+The gateway picks the provider from the model prefix:
+
+| Prefix       | NyxID provider slug         |
+| ------------ | --------------------------- |
+| `gpt-*`      | `openai` or `openai-codex`  |
+| `claude-*`   | `anthropic`                 |
+| `deepseek-*` | `deepseek`                  |
+| `gemini-*`   | `gemini`                    |
+
+Run `nocturne-format status` to see which providers are `ready`. Pick a model matching one of them. Common pitfall: `gpt-4o-mini` routes to `openai-codex` only if the user has the ChatGPT Codex connector — that connector rejects non-codex models. If the user's ready set is `{anthropic, deepseek, openai-codex}`, set the model to `deepseek-chat` (JSON-mode friendly, cheap, fast):
+
+```bash
+nocturne-format config set model deepseek-chat
+```
+
+## Prerequisites (repo checkout)
+
+- Working directory has `package.json` with `"name": "nocturne"` and `src/cli/format.ts`.
 - `bun` on PATH.
-- EITHER `nyxid login` done once (tokens in `~/.nyxid/`, ≥1 LLM provider configured on the NyxID dashboard), OR `NOCTURNE_OPENAI_API_KEY` exported.
-- Optional: `NOCTURNE_OPENAI_MODEL` (default `gpt-4o-mini`; in NyxID mode the gateway routes by prefix — `gpt-*`, `claude-*`, `deepseek-*`, `gemini-*`), `NOCTURNE_OPENAI_BASE_URL` (ignored in NyxID mode), `NOCTURNE_OUT_DIR` (default `./out`).
+- EITHER `nyxid login` done once, OR `api-key` configured via the `config` subcommand / env.
+- Optional: `model` / `base-url` / `out-dir` via `config set`.
 
-If neither is configured, ask the user which path they want.
+If nothing is configured, ask the user which path they want before running.
 
 ## How to invoke
 
 Prefer **stdin**:
 
 ```bash
-printf '%s' "$CONTENT" | bun run format
+printf '%s' "$CONTENT" | nocturne-format
 ```
 
 From a file:
 
 ```bash
-bun run format --in ./content.md
+nocturne-format --in ./content.md
 ```
 
 Specific output:
 
 ```bash
-bun run format --in ./content.md --out ~/Desktop/my-page.html
+nocturne-format --in ./content.md --out ~/Desktop/my-page.html
 ```
 
 ## Exit codes & error handling
 
 - `0` — success; stdout has the output path.
 - Non-zero — stderr has `error: ...`. Common cases:
-  - `no planner source available` → run `nyxid login` or set `NOCTURNE_OPENAI_API_KEY`.
-  - `planner upstream HTTP 4xx/5xx` → provider issue; try a different model prefix.
-  - `planner returned invalid output` → usually a model that doesn't honor `response_format: json_object` (Anthropic via NyxID often hits this). Switch to an OpenAI-family or DeepSeek model.
+  - `no planner source available` → `nyxid login` or `config set api-key sk-...`.
+  - `planner upstream HTTP 4xx/5xx` → provider issue; try a different model prefix (suggest `deepseek-chat` as a safe default via `config set model deepseek-chat`).
+  - `planner returned invalid output` → usually a model that doesn't honor `response_format: json_object` (Anthropic via NyxID often hits this). Switch to OpenAI-family or DeepSeek.
 
-Warnings may precede the output path on stderr (e.g. "NyxID path unavailable: ...") — that means fallback fired; the page still generated.
+Warnings may precede the output path on stderr (e.g. "NyxID path unavailable: ...") — the fallback fired; the page still generated.
 
 ## Known local-mode limitations (tell the user if asked)
 
@@ -79,4 +119,5 @@ Warnings may precede the output path on stderr (e.g. "NyxID path unavailable: ..
 
 - Do NOT start the HTTP server (`bun run dev`) just to render one page. The CLI is the local path.
 - Do NOT write NyxID / chrono-storage / Supabase server-side env vars for the CLI; those are for the hosted server only.
+- Do NOT hand-edit `~/.config/nocturne/config.json` when the `config` subcommand works — it chmods to 0600 and validates the schema on write.
 - Do NOT commit `.env` files with real API keys.

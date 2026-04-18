@@ -6,28 +6,73 @@ import { join } from "node:path";
 import { ArgsError, parseArgs } from "./format.ts";
 
 describe("parseArgs", () => {
-  it("returns empty Args for no argv", () => {
-    expect(parseArgs([])).toEqual({});
+  it("bare invocation → format subcommand", () => {
+    expect(parseArgs([])).toEqual({ subcommand: { kind: "format" } });
   });
 
   it("parses --in, --out, --out-dir", () => {
     expect(parseArgs(["--in", "a.md", "--out", "b.html", "--out-dir", "x"]))
-      .toEqual({ inPath: "a.md", outPath: "b.html", outDir: "x" });
+      .toEqual({
+        subcommand: { kind: "format" },
+        inPath: "a.md",
+        outPath: "b.html",
+        outDir: "x",
+      });
   });
 
   it("flags help", () => {
-    expect(parseArgs(["--help"])).toEqual({ help: true });
-    expect(parseArgs(["-h"])).toEqual({ help: true });
+    expect(parseArgs(["--help"])).toEqual({
+      subcommand: { kind: "format" },
+      help: true,
+    });
+    expect(parseArgs(["-h"])).toEqual({
+      subcommand: { kind: "format" },
+      help: true,
+    });
   });
 
   it("recognizes the status subcommand", () => {
-    expect(parseArgs(["status"])).toEqual({ subcommand: "status" });
+    expect(parseArgs(["status"])).toEqual({ subcommand: { kind: "status" } });
   });
 
-  it("only the FIRST positional is treated as a subcommand", () => {
-    // An unknown second positional still errors — we don't silently swallow
-    // it because a subcommand slot exists.
-    expect(() => parseArgs(["status", "format"])).toThrow(ArgsError);
+  it("status rejects trailing args", () => {
+    expect(() => parseArgs(["status", "foo"])).toThrow(ArgsError);
+  });
+
+  it("config list", () => {
+    expect(parseArgs(["config", "list"])).toEqual({
+      subcommand: { kind: "config-list" },
+    });
+  });
+
+  it("config get <key>", () => {
+    expect(parseArgs(["config", "get", "model"])).toEqual({
+      subcommand: { kind: "config-get", key: "model" },
+    });
+  });
+
+  it("config set <key> <value> (kebab-case key is accepted)", () => {
+    expect(parseArgs(["config", "set", "api-key", "sk-xyz"])).toEqual({
+      subcommand: { kind: "config-set", key: "api_key", value: "sk-xyz" },
+    });
+  });
+
+  it("config unset <key>", () => {
+    expect(parseArgs(["config", "unset", "model"])).toEqual({
+      subcommand: { kind: "config-unset", key: "model" },
+    });
+  });
+
+  it("config set without value errors", () => {
+    expect(() => parseArgs(["config", "set", "model"])).toThrow(ArgsError);
+  });
+
+  it("config with unknown action errors", () => {
+    expect(() => parseArgs(["config", "foo"])).toThrow(ArgsError);
+  });
+
+  it("config with unknown key errors", () => {
+    expect(() => parseArgs(["config", "get", "bogus"])).toThrow(ArgsError);
   });
 
   it("throws ArgsError when --in is missing a value", () => {
@@ -157,5 +202,108 @@ describe("CLI: bun run src/cli/format.ts", () => {
     expect(out).toContain("not logged in");
     expect(out).toContain("OpenAI API key");
     expect(out).toContain("not set");
+  }, 10_000);
+
+  it("`config set` then format uses the config-file values (no env vars)", async () => {
+    // Use a fresh HOME so the config file and the (absent) ~/.nyxid are
+    // both scoped to this test.
+    const isolatedHome = mkdtempSync(join(tmpdir(), "nocturne-cfgset-"));
+    try {
+      const envBase: Record<string, string | undefined> = {
+        ...process.env,
+        HOME: isolatedHome,
+      };
+      // Wipe any real OPENAI key from the inherited env.
+      delete envBase.NOCTURNE_OPENAI_API_KEY;
+      delete envBase.NOCTURNE_OPENAI_MODEL;
+      delete envBase.NOCTURNE_OPENAI_BASE_URL;
+      delete envBase.NOCTURNE_OUT_DIR;
+
+      // Write model / base-url / api-key through the CLI itself.
+      for (const args of [
+        ["config", "set", "model", "gpt-fixture"],
+        ["config", "set", "base-url", `http://127.0.0.1:${server.port}/v1`],
+        ["config", "set", "api-key", "sk-local-test"],
+        ["config", "set", "out-dir", outDir],
+      ]) {
+        const proc = Bun.spawn({
+          cmd: ["bun", "run", "src/cli/format.ts", ...args],
+          env: envBase,
+          stdout: "pipe",
+          stderr: "pipe",
+        });
+        const code = await proc.exited;
+        const err = await new Response(proc.stderr).text();
+        expect({ args, code, err }).toEqual({ args, code: 0, err: "" });
+      }
+
+      // Run format with zero env vars — config file must supply everything.
+      const proc = Bun.spawn({
+        cmd: ["bun", "run", "src/cli/format.ts"],
+        env: envBase,
+        stdin: new Response("Config-file-driven test.").body ?? undefined,
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const out = await new Response(proc.stdout).text();
+      const err = await new Response(proc.stderr).text();
+      const code = await proc.exited;
+      expect(err).toBe("");
+      expect(code).toBe(0);
+      const printedPath = out.trim();
+      expect(printedPath.startsWith(outDir)).toBe(true);
+
+      const html = readFileSync(printedPath, "utf8");
+      expect(html).toContain("CLI Smoke");
+    } finally {
+      rmSync(isolatedHome, { recursive: true, force: true });
+    }
+  }, 20_000);
+
+  it("`config list` shows env / file / default sources", async () => {
+    const isolatedHome = mkdtempSync(join(tmpdir(), "nocturne-cfglist-"));
+    try {
+      // First write a model via CLI (will land in the file).
+      const write = Bun.spawn({
+        cmd: [
+          "bun",
+          "run",
+          "src/cli/format.ts",
+          "config",
+          "set",
+          "model",
+          "deepseek-chat",
+        ],
+        env: { ...process.env, HOME: isolatedHome },
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      await write.exited;
+
+      // Now list with an env override on base_url.
+      const list = Bun.spawn({
+        cmd: ["bun", "run", "src/cli/format.ts", "config", "list"],
+        env: {
+          ...process.env,
+          HOME: isolatedHome,
+          NOCTURNE_OPENAI_BASE_URL: "https://override.example.com/v1",
+        },
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const out = await new Response(list.stdout).text();
+      await list.exited;
+
+      // model comes from config file, base_url from env override,
+      // out_dir from default, api_key unset/default.
+      expect(out).toMatch(/model\s+deepseek-chat\s+file/);
+      expect(out).toMatch(
+        /base_url\s+https:\/\/override\.example\.com\/v1\s+env/,
+      );
+      expect(out).toMatch(/out_dir\s+\.\/out\s+default/);
+      expect(out).toMatch(/api_key\s+<unset>\s+default/);
+    } finally {
+      rmSync(isolatedHome, { recursive: true, force: true });
+    }
   }, 10_000);
 });

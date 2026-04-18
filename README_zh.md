@@ -58,12 +58,18 @@ Please set up the Nocturne CLI on this machine:
      nocturne-format status
      nocturne-format --help
 
-If the user wants NyxID-brokered LLM access (recommended), also suggest they:
+If the user wants NyxID-brokered LLM access (recommended):
    - Install the nyxid CLI from the NyxID project
    - Sign up with invite code NYX-TW58O1WE if they don't have an account yet (20 slots)
    - Run `nyxid login`
    - Configure at least one LLM provider on the NyxID dashboard
-Otherwise suggest exporting NOCTURNE_OPENAI_API_KEY=sk-... for the fallback path.
+   - Run `nocturne-format status` and check `ready providers`
+   - If the ready set includes `openai-codex` but NOT plain `openai`, default
+     the model to something NyxID can actually route:
+         nocturne-format config set model deepseek-chat
+Otherwise (local OpenAI-compatible key):
+     nocturne-format config set api-key sk-...
+   (The key goes to ~/.config/nocturne/config.json with chmod 0600.)
 ```
 
 ## 手动安装
@@ -107,27 +113,43 @@ nocturne-format status
 
 CLI 把生成的 HTML 绝对路径打到 stdout。`open`（macOS）/ `xdg-open`（Linux）打开即可。
 
-## 选模型
+## 配置
 
-`NOCTURNE_OPENAI_MODEL` 按前缀路由到 NyxID 上 ready 的 provider：
+Nocturne 把偏好（以及可选的 api-key 兜底值）放在 `~/.config/nocturne/config.json`，chmod `0600`。用 CLI 管，别手编：
 
-| 前缀 | Provider（NyxID slug） |
-|---|---|
-| `gpt-*` | `openai` / `openai-codex` |
-| `claude-*` | `anthropic` |
-| `deepseek-*` | `deepseek` |
-| `gemini-*` | `gemini` |
+```bash
+nocturne-format config list                                # 显示当前生效值 + 来源（env / 文件 / 默认）
+nocturne-format config get model
+nocturne-format config set model deepseek-chat             # 写入
+nocturne-format config set api-key sk-...                  # 自动 0600
+nocturne-format config unset api-key                       # 删除
+```
 
-`nocturne-format status` 可以看你账户上哪些 provider 是 ready 的。
+**Key：** `model` · `base-url` · `out-dir` · `api-key`（kebab 或 snake 都认）。
 
-## 环境变量（都是可选）
+### 选模型
 
-| 变量 | 默认值 | 说明 |
-|---|---|---|
-| `NOCTURNE_OPENAI_API_KEY` | _(未设置)_ | 没登录 NyxID 时兜底用。 |
-| `NOCTURNE_OPENAI_BASE_URL` | `https://api.openai.com/v1` | 兜底路径用；NyxID 模式下忽略。 |
-| `NOCTURNE_OPENAI_MODEL` | `gpt-4o-mini` | 两种模式共用；gateway 按前缀路由。 |
-| `NOCTURNE_OUT_DIR` | `./out` | `--out` 未指定时用这个目录。 |
+`model` 按前缀路由到 NyxID 上 `ready` 的 provider：
+
+| 前缀         | Provider（NyxID slug）     |
+|--------------|----------------------------|
+| `gpt-*`      | `openai` / `openai-codex`  |
+| `claude-*`   | `anthropic`                |
+| `deepseek-*` | `deepseek`                 |
+| `gemini-*`   | `gemini`                   |
+
+**坑**：如果账户里唯一的 `openai` 类 provider 是 ChatGPT Codex 适配器，`gpt-4o-mini` 会被路由到 `openai-codex`，而 Codex 只吃 codex-* 专属模型，返回 400。先跑 `nocturne-format status` 看看 ready 列表；如果只有 `openai-codex` 没有 plain `openai`，设个稳妥默认：`nocturne-format config set model deepseek-chat`。
+
+### 环境变量（可选覆盖）
+
+每个 config key 都有对应的 env var，**运行时会覆盖 config 文件**，shell export / 1Password wrapper / systemd drop-in 都不用改：
+
+| 环境变量                    | Config key  | 默认值                      |
+|-----------------------------|-------------|-----------------------------|
+| `NOCTURNE_OPENAI_API_KEY`   | `api-key`   | _(未设置)_                  |
+| `NOCTURNE_OPENAI_BASE_URL`  | `base-url`  | `https://api.openai.com/v1` |
+| `NOCTURNE_OPENAI_MODEL`     | `model`     | `gpt-4o-mini`               |
+| `NOCTURNE_OUT_DIR`          | `out-dir`   | `./out`                     |
 
 ## 项目结构
 
@@ -158,6 +180,41 @@ bun run dev                 # http://localhost:7701
 psql "$(cat ~/.supabase-credentials)" -f db/migrations/001_nocturne_schema.sql
 bun run build               # linux-x64 部署二进制 → dist/nocturne
 ```
+
+## 让 Claude Code 主动提议 Nocturne
+
+光装 skill（上面那步）只教会 Claude Code "用户明确要求时才调" —— 比如你说"渲染成页面"它才用。如果你想让 Claude Code 在写完长总结/周报/会议纪要时**主动**问你要不要顺手渲染一份 Nocturne，把下面这段追加到 `~/.claude/CLAUDE.md`（没这个文件就新建）：
+
+```markdown
+## Proactively offer Nocturne for long prose outputs
+
+The `nocturne-format` CLI is installed on this machine and can render flowing prose into a newspaper-style HTML file.
+
+At the end of a reply, add **exactly one** line asking whether to render
+the output as a Nocturne page, when ALL of the following hold:
+
+1. The reply is ≥200 words of narrative prose — summary, report, brief,
+   retrospective, status update, executive summary, meeting notes,
+   briefing, 周报/日报/总结/回顾/简报/会议纪要/writeup.
+2. The user did NOT specify a delivery format in the same turn
+   (email, Slack message, doc, 飞书文档, GitHub issue body, markdown
+   file at a particular path, etc.).
+3. You have not already offered Nocturne earlier in this turn.
+4. The user has not previously declined Nocturne in this conversation.
+
+Offer in the language of the surrounding reply:
+- English: *Want me to render this as a Nocturne page? (newspaper-style HTML on your disk, ~20s.)*
+- 中文：*要不要顺手渲染成 Nocturne 页面？（报纸风 HTML 文件，~20 秒。）*
+
+One sentence, at the end, no headers or bullets. Skip entirely for code
+generation, debugging output, error explanations, or short answers.
+
+If the user accepts, invoke the `nocturne-format` skill — pipe the prose
+via stdin (or write to a temp file and `--in` if it contains shell-hostile
+characters), print the output path back, and on macOS offer to `open` it.
+```
+
+下次 Claude Code 会话启动时生效（CLAUDE.md 只在会话启动时加载一次）。
 
 ## 参考
 

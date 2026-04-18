@@ -1,20 +1,21 @@
 /**
- * Local CLI configuration. Independent of `src/config.ts` so the strict
- * server-side schema (DATABASE_URL, NyxID URLs, ...) does not apply.
+ * Local CLI configuration.
  *
- * Two upstream planners the CLI can use:
- *   1. NyxID gateway (`~/.nyxid/` + `/api/v1/llm/status`) — preferred when
- *      the user has `nyxid login`'d and has ≥1 ready provider.
- *   2. Direct OpenAI-compatible API — requires `NOCTURNE_OPENAI_API_KEY`.
+ * Two sources, in precedence order:
+ *   1. Environment variables (`NOCTURNE_OPENAI_*`, `NOCTURNE_OUT_DIR`) —
+ *      win so users with shell / systemd / 1Password-wrapper setups aren't
+ *      surprised by a stale config file.
+ *   2. Persisted config at `~/.config/nocturne/config.json` (managed by
+ *      `nocturne-format config set/unset`).
+ *   3. Defaults — applied when both above are absent.
  *
- * `NOCTURNE_OPENAI_API_KEY` is therefore OPTIONAL at config-load time.
- * `loadLocalConfig` always succeeds if the other fields parse; the
+ * `NOCTURNE_OPENAI_API_KEY` is OPTIONAL at load time. The NyxID path
+ * (`~/.nyxid/`) is a separate source handled by `nyxid-auth.ts`; the
  * caller checks that at least one planner source is available.
- *
- * Caller passes `process.env` (or a subset) explicitly — makes this unit
- * testable without touching real env.
  */
 import { z } from "zod";
+
+import type { ConfigFile, ConfigKey } from "./config-file.ts";
 
 export class LocalConfigError extends Error {
   constructor(message: string) {
@@ -23,24 +24,11 @@ export class LocalConfigError extends Error {
   }
 }
 
-// Empty-string env values come from `export VAR=` in a shell or a parent
-// process that explicitly cleared the var; we treat them as "not set" so a
-// stray `NOCTURNE_OPENAI_API_KEY=` line does not trip a "too short" error.
-const emptyToUndefined = (v: unknown) =>
-  typeof v === "string" && v.length === 0 ? undefined : v;
-
-const LocalConfigSchema = z.object({
-  NOCTURNE_OPENAI_API_KEY: z.preprocess(
-    emptyToUndefined,
-    z.string().min(1).optional(),
-  ),
-  NOCTURNE_OPENAI_BASE_URL: z
-    .string()
-    .url()
-    .default("https://api.openai.com/v1"),
-  NOCTURNE_OPENAI_MODEL: z.string().min(1).default("gpt-4o-mini"),
-  NOCTURNE_OUT_DIR: z.string().min(1).default("./out"),
-});
+/**
+ * Per-key provenance so `config list` can tell the user where each
+ * effective value came from. "default" means neither source set it.
+ */
+export type ConfigSource = "env" | "file" | "default";
 
 export interface LocalConfig {
   /** `undefined` when the user relies on NyxID for LLM access. */
@@ -48,26 +36,95 @@ export interface LocalConfig {
   baseUrl: string;
   model: string;
   outDir: string;
+  sources: Record<ConfigKey, ConfigSource>;
 }
 
+const DEFAULTS: Required<Omit<ConfigFile, "api_key">> = {
+  base_url: "https://api.openai.com/v1",
+  model: "gpt-4o-mini",
+  out_dir: "./out",
+};
+
+const emptyToUndef = (v: string | undefined): string | undefined =>
+  v === undefined || v === "" ? undefined : v;
+
+const EnvSchema = z.object({
+  NOCTURNE_OPENAI_API_KEY: z.string().min(1).optional(),
+  NOCTURNE_OPENAI_BASE_URL: z.string().url().optional(),
+  NOCTURNE_OPENAI_MODEL: z.string().min(1).optional(),
+  NOCTURNE_OUT_DIR: z.string().min(1).optional(),
+});
+
+/**
+ * Merge env → file → defaults. Either source being invalid throws
+ * `LocalConfigError`; the caller surfaces it to stderr.
+ */
 export function loadLocalConfig(
   env: Record<string, string | undefined>,
+  file: ConfigFile = {},
 ): LocalConfig {
-  const parsed = LocalConfigSchema.safeParse(env);
+  const envNormalized = {
+    NOCTURNE_OPENAI_API_KEY: emptyToUndef(env.NOCTURNE_OPENAI_API_KEY),
+    NOCTURNE_OPENAI_BASE_URL: emptyToUndef(env.NOCTURNE_OPENAI_BASE_URL),
+    NOCTURNE_OPENAI_MODEL: emptyToUndef(env.NOCTURNE_OPENAI_MODEL),
+    NOCTURNE_OUT_DIR: emptyToUndef(env.NOCTURNE_OUT_DIR),
+  };
+  const parsed = EnvSchema.safeParse(envNormalized);
   if (!parsed.success) {
     const first = parsed.error.issues[0];
-    if (!first) {
-      throw new LocalConfigError("Invalid local config.");
-    }
-    const path = first.path.join(".");
     throw new LocalConfigError(
-      `Invalid local config: ${path} — ${first.message}`,
+      first
+        ? `Invalid env: ${first.path.join(".")} — ${first.message}`
+        : "Invalid env",
     );
   }
+
+  const pick = <K extends ConfigKey>(
+    key: K,
+    envVal: string | undefined,
+    fileVal: string | undefined,
+    fallback?: string,
+  ): { value: string | undefined; source: ConfigSource } => {
+    if (envVal !== undefined) return { value: envVal, source: "env" };
+    if (fileVal !== undefined) return { value: fileVal, source: "file" };
+    if (fallback !== undefined) return { value: fallback, source: "default" };
+    return { value: undefined, source: "default" };
+  };
+
+  const model = pick(
+    "model",
+    parsed.data.NOCTURNE_OPENAI_MODEL,
+    file.model,
+    DEFAULTS.model,
+  );
+  const baseUrl = pick(
+    "base_url",
+    parsed.data.NOCTURNE_OPENAI_BASE_URL,
+    file.base_url,
+    DEFAULTS.base_url,
+  );
+  const outDir = pick(
+    "out_dir",
+    parsed.data.NOCTURNE_OUT_DIR,
+    file.out_dir,
+    DEFAULTS.out_dir,
+  );
+  const apiKey = pick(
+    "api_key",
+    parsed.data.NOCTURNE_OPENAI_API_KEY,
+    file.api_key,
+  );
+
   return {
-    apiKey: parsed.data.NOCTURNE_OPENAI_API_KEY,
-    baseUrl: parsed.data.NOCTURNE_OPENAI_BASE_URL,
-    model: parsed.data.NOCTURNE_OPENAI_MODEL,
-    outDir: parsed.data.NOCTURNE_OUT_DIR,
+    apiKey: apiKey.value,
+    baseUrl: baseUrl.value!,
+    model: model.value!,
+    outDir: outDir.value!,
+    sources: {
+      model: model.source,
+      base_url: baseUrl.source,
+      out_dir: outDir.source,
+      api_key: apiKey.source,
+    },
   };
 }
