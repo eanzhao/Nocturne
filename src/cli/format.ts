@@ -1,14 +1,19 @@
 #!/usr/bin/env bun
 /**
- * Local CLI:
+ * Local CLI — two responsibilities:
  *
- *   cat content.md | bun run format                       # stdin → ./out
- *   bun run format --in content.md                        # file → ./out
- *   bun run format --in content.md --out ./page.html      # explicit path
- *   bun run format --out-dir ./my-pages                   # override out dir
+ *   nocturne-format              # render raw content (stdin or --in)
+ *   nocturne-format status       # show auth / provider resolution
  *
- * Writes ONE HTML file and prints its absolute path on stdout. Errors go
- * to stderr with a non-zero exit code.
+ * Planner source resolution (format path):
+ *
+ *   1. NyxID (~/.nyxid/ tokens) + `/api/v1/llm/status` shows ≥1 ready
+ *      provider → use `{gateway_url}/chat/completions` with the bearer.
+ *   2. Fallback: `NOCTURNE_OPENAI_API_KEY` → direct OpenAI-compatible call.
+ *   3. Neither → error with a hint pointing at both paths.
+ *
+ * The user logs in via the separate `nyxid` CLI; Nocturne only consumes
+ * tokens. No login/logout subcommands here.
  */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
@@ -22,8 +27,15 @@ import {
 } from "../llm/openai-compat.ts";
 import { planDailyBriefWithOpenAI } from "../llm/openai.ts";
 import { loadLocalConfig, LocalConfigError } from "./config.ts";
+import {
+  NyxIDStatusError,
+  readNyxIDTokens,
+  resolveNyxIDGateway,
+  type NyxIDTokens,
+} from "./nyxid-auth.ts";
 
 export interface Args {
+  subcommand?: "status";
   inPath?: string;
   outPath?: string;
   outDir?: string;
@@ -32,14 +44,24 @@ export interface Args {
 
 export class ArgsError extends Error {}
 
+const SUBCOMMANDS = new Set(["status"]);
+
 /**
  * Pure arg parser — throws `ArgsError` on malformed input, returns `Args`.
- * Flag-taking options (`--in`, `--out`, `--out-dir`) require a non-flag value
- * after them; missing values fail loudly rather than silently falling back.
+ * Flag-taking options require a non-flag value after them; missing values
+ * fail loudly rather than silently falling back to stdin / defaults.
  */
 export function parseArgs(argv: string[]): Args {
   const a: Args = {};
-  for (let i = 0; i < argv.length; i++) {
+  let i = 0;
+
+  // First positional token, if it's a known subcommand, consumes one slot.
+  if (argv.length > 0 && SUBCOMMANDS.has(argv[0]!)) {
+    a.subcommand = argv[0] as Args["subcommand"];
+    i = 1;
+  }
+
+  for (; i < argv.length; i++) {
     const v = argv[i];
     if (v === "--in" || v === "--out" || v === "--out-dir") {
       const next = argv[i + 1];
@@ -60,18 +82,25 @@ export function parseArgs(argv: string[]): Args {
 }
 
 function printHelp(): void {
-  process.stdout.write(`nocturne format — render raw content to an HTML page.
+  process.stdout.write(`nocturne-format — render raw content to an HTML page.
 
 Usage:
-  echo "..." | bun run format
-  bun run format --in content.md
-  bun run format --in content.md --out ./page.html
-  bun run format --out-dir ./pages
+  echo "..." | nocturne-format
+  nocturne-format --in content.md
+  nocturne-format --in content.md --out ./page.html
+  nocturne-format --out-dir ./pages
+  nocturne-format status                    # show auth / provider state
 
-Env vars (see .env.example):
-  NOCTURNE_OPENAI_API_KEY   (required)
+Auth:
+  Preferred  — run \`nyxid login\` once; Nocturne reads ~/.nyxid/ tokens
+               and routes through the NyxID LLM gateway.
+  Fallback   — export NOCTURNE_OPENAI_API_KEY for direct OpenAI access.
+
+Env vars:
+  NOCTURNE_OPENAI_API_KEY   (fallback; optional if NyxID is configured)
   NOCTURNE_OPENAI_BASE_URL  (default: https://api.openai.com/v1)
-  NOCTURNE_OPENAI_MODEL     (default: gpt-4o-mini)
+  NOCTURNE_OPENAI_MODEL     (default: gpt-4o-mini; in NyxID mode the
+                             gateway routes by prefix — gpt-*, claude-*, ...)
   NOCTURNE_OUT_DIR          (default: ./out)
 `);
 }
@@ -109,6 +138,122 @@ function resolveOutPath(args: Args, defaultDir: string, pageId: string): string 
   return resolve(absDir, `${pageId}.html`);
 }
 
+// ---------------------------------------------------------------------------
+// Planner source resolution
+
+interface PlannerSource {
+  label: "nyxid" | "openai";
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+}
+
+/**
+ * Pick which planner source to use for a format invocation.
+ *
+ * Returns the chosen `PlannerSource` plus any user-facing warnings
+ * collected while trying preferred paths (so the caller can `stderr`
+ * them without failing).
+ */
+async function pickPlannerSource(
+  tokens: NyxIDTokens | null,
+  env: { apiKey: string | undefined; model: string; baseUrl: string },
+): Promise<{ source: PlannerSource; warnings: string[] }> {
+  const warnings: string[] = [];
+
+  if (tokens !== null) {
+    try {
+      const gateway = await resolveNyxIDGateway(tokens);
+      return {
+        source: {
+          label: "nyxid",
+          apiKey: tokens.accessToken,
+          baseUrl: gateway.gatewayUrl,
+          model: env.model,
+        },
+        warnings,
+      };
+    } catch (err) {
+      if (err instanceof NyxIDStatusError) {
+        warnings.push(`NyxID path unavailable: ${err.message}`);
+      } else {
+        warnings.push(
+          `NyxID path errored unexpectedly: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+      // fall through to OpenAI path
+    }
+  }
+
+  if (env.apiKey !== undefined) {
+    return {
+      source: {
+        label: "openai",
+        apiKey: env.apiKey,
+        baseUrl: env.baseUrl,
+        model: env.model,
+      },
+      warnings,
+    };
+  }
+
+  fail(
+    [
+      "no planner source available.",
+      "Either:",
+      "  - run `nyxid login` (then configure an LLM provider on the NyxID dashboard), or",
+      "  - export NOCTURNE_OPENAI_API_KEY=sk-...",
+      ...(warnings.length > 0
+        ? ["", "Previously attempted:", ...warnings.map((w) => `  · ${w}`)]
+        : []),
+    ].join("\n"),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Subcommand: status
+
+function runStatus(
+  tokens: NyxIDTokens | null,
+  env: { apiKey: string | undefined },
+): Promise<void> {
+  return (async () => {
+    const lines: string[] = [];
+    lines.push("Nocturne CLI auth status");
+    lines.push("");
+
+    if (tokens === null) {
+      lines.push("  NyxID          : not logged in (run `nyxid login`)");
+    } else {
+      lines.push(`  NyxID base_url : ${tokens.baseUrl}`);
+      try {
+        const gateway = await resolveNyxIDGateway(tokens);
+        lines.push(`  NyxID gateway  : ${gateway.gatewayUrl}`);
+        lines.push(
+          `  ready providers: ${gateway.readyProviders.join(", ")}`,
+        );
+      } catch (err) {
+        if (err instanceof NyxIDStatusError) {
+          lines.push(`  NyxID status   : ${err.hint} — ${err.message}`);
+        } else {
+          lines.push(
+            `  NyxID status   : errored (${err instanceof Error ? err.message : String(err)})`,
+          );
+        }
+      }
+    }
+
+    lines.push(
+      `  OpenAI API key : ${env.apiKey === undefined ? "not set" : "set (fallback)"}`,
+    );
+
+    process.stdout.write(`${lines.join("\n")}\n`);
+  })();
+}
+
+// ---------------------------------------------------------------------------
+// Main
+
 async function main(): Promise<void> {
   let args: Args;
   try {
@@ -130,19 +275,33 @@ async function main(): Promise<void> {
     throw err;
   }
 
+  const tokens = readNyxIDTokens();
+
+  if (args.subcommand === "status") {
+    await runStatus(tokens, { apiKey: cfg.apiKey });
+    return;
+  }
+
   const content = (await readInput(args.inPath)).trim();
   if (!content) fail("empty input");
+
+  const { source, warnings } = await pickPlannerSource(tokens, {
+    apiKey: cfg.apiKey,
+    baseUrl: cfg.baseUrl,
+    model: cfg.model,
+  });
+  for (const w of warnings) process.stderr.write(`warning: ${w}\n`);
 
   let generated;
   try {
     generated = await generatePage(content, {
       planner: (c) =>
         planDailyBriefWithOpenAI(c, {
-          apiKey: cfg.apiKey,
-          baseUrl: cfg.baseUrl,
-          model: cfg.model,
+          apiKey: source.apiKey,
+          baseUrl: source.baseUrl,
+          model: source.model,
         }),
-      model: cfg.model,
+      model: source.model,
       userId: "local",
       seq: 1,
       // ownerSlug intentionally omitted — suppresses the archive link.

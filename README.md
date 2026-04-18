@@ -1,98 +1,167 @@
 # Nocturne
 
-把 LLM 回复变成一份可分享的报纸/杂志页面。一次 HTTP POST，换一个好看的 URL。
+Turn an LLM reply into a newspaper-style HTML page. Part of the [NyxID](https://github.com/ChronoAIProject/NyxID) ecosystem.
 
-## 为什么
+> [中文版 README](README_zh.md)
 
-ChatGPT / Claude 的回复信息密度很高，但想把它分享给别人基本只剩两条路：截图，或者复制粘贴到飞书 / Notion 自己排。前者糊，后者费劲。
+## What is this?
 
-Nocturne 做一件事 —— 接收一段 LLM 输出，返回一个 URL：打开就是一份排好版的报纸/杂志风网页，桌面和手机都好看，可收藏、可分享、可长期访问。
+ChatGPT and Claude produce dense, structured content, but the only ways to share it are a screenshot (blurry) or a copy-paste into Notion / Lark (tedious). Nocturne does one thing: takes raw text in, writes an HTML file out.
 
-## 方案概览
+- Broadsheet typography, responsive layout, device-agnostic
+- LLM picks the spec (executive / quiet / 古籍) and composes the page
+- Works with NyxID-brokered providers (recommended) or any OpenAI-compatible endpoint
+- The binary is ~60 MB Bun bundle, runs offline except for the LLM call
 
-- **一个 HTTP 接口**：`POST /format` 收内容，返回 `{ url }`
-- **一个渲染站点**：`/v/{id}` 动态渲染页面，响应式 CSS，内容存储 + CDN 缓存
-- **挂在 NyxID 下**：作为 [NyxID](https://github.com/ChronoAIProject/NyxID) 生态里的一个 downstream service。调用方通过 `/api/v1/proxy/s/nocturne/format` 调用，凭证由 NyxID 托管注入 —— Nocturne 自身不做用户鉴权系统，只校验来自 NyxID 的 Bearer token
-
-## 架构草图
-
-```
- client / agent
-      │
-      ▼                        (Nocturne 只需信任 NyxID 注入的凭证)
- NyxID proxy  ────────▶  Nocturne API  ──▶  内容存储 ──▶  渲染页面 /v/{id}
-  (/api/v1/proxy/s/nocturne/format)              │
-                                                 └─▶  (可选) 版面编辑 LLM
-                                                       回调 NyxID 代理
+```bash
+printf '%s' "$CONTENT" | nocturne-format
+# → /Users/you/out/ab12cd3ef.html
 ```
 
-技术栈倾向 **TypeScript + Next.js**：一份代码既是 API 也是 SSR 渲染层，部署走 Vercel / Fly.io / 自建 Docker 都轻。
+## Current status
 
-## 排版：Nocturne 内部做版面编辑
+| Capability | Status | Notes |
+|---|---|---|
+| `nocturne-format` CLI | ✅ | stdin / `--in` / `--out`, local HTML generation |
+| NyxID LLM gateway | ✅ | Reads `~/.nyxid/` tokens, routes through `/api/v1/llm/gateway/v1` |
+| OpenAI-compatible fallback | ✅ | `NOCTURNE_OPENAI_API_KEY` → OpenAI / OpenRouter / llama.cpp |
+| Agent skill (Claude Code / Cursor) | ✅ | Paste the setup prompt — automatic clone + build + install |
+| 3 aesthetic specs | ✅ | `executive-broadsheet` / `quiet-ledger` / `guji-classical` (vertical CJK) |
+| HTTP service (NyxID downstream) | 🟡 | v0-alpha; lives behind the NyxID proxy, most users don't run it |
+| Per-spec CSS evolution | 🔲 | Architecture in place, visual differentiation pending |
 
-客户端只发原始内容，Nocturne **通过 NyxID 代理调用用户自己配置的 LLM**，让 LLM 做编辑工作：起标题、导语、小标题；切版块、挑引文、决定重点；输出结构化 JSON 交给渲染层（`AestheticSpec`）。
+## Recommended: pair with NyxID
+
+NyxID brokers your LLM credentials (OpenAI, Anthropic, DeepSeek, Gemini, …) so Nocturne never touches raw API keys. After `nyxid login`, Nocturne reads `~/.nyxid/access_token` automatically and routes through NyxID's LLM gateway.
+
+**Don't have NyxID yet?** Sign up with invite code **`NYX-TW58O1WE`** — 20 slots available on this code.
+
+Without NyxID, Nocturne falls back to `NOCTURNE_OPENAI_API_KEY` against any OpenAI-compatible endpoint.
+
+## Quickstart — Claude Code
+
+Paste the following into Claude Code (any directory). It clones, builds, installs the binary, and copies the user-level skill so every future Claude Code session can invoke Nocturne automatically.
 
 ```
-POST /format
-{
-  "content": "..."     // 必填：原始内容
-}
+Please set up the Nocturne CLI on this machine:
+
+1. git clone git@github.com:eanzhao/Nocturne.git ~/Code/Nocturne  (skip if already present)
+2. cd ~/Code/Nocturne && bun install
+3. bun run test   (sanity check — should be all green)
+4. Compile a local binary for this host and install it to ~/.bun/bin:
+     bun build --compile --minify --target=bun-darwin-arm64 ./src/cli/format.ts --outfile ~/.bun/bin/nocturne-format
+   (on Linux: --target=bun-linux-x64 ; on Intel Mac: --target=bun-darwin-x64)
+5. Copy the user-level skill so future sessions discover the CLI:
+     mkdir -p ~/.claude/skills/nocturne
+     cp ~/Code/Nocturne/.claude/skills/nocturne-format/SKILL.md ~/.claude/skills/nocturne/SKILL.md
+6. Verify:
+     nocturne-format status
+     nocturne-format --help
+
+If the user wants NyxID-brokered LLM access (recommended), also suggest they:
+   - Install the nyxid CLI from the NyxID project
+   - Sign up with invite code NYX-TW58O1WE if they don't have an account yet (20 slots)
+   - Run `nyxid login`
+   - Configure at least one LLM provider on the NyxID dashboard
+Otherwise suggest exporting NOCTURNE_OPENAI_API_KEY=sk-... for the fallback path.
 ```
 
-- LLM 费用走用户自己的 NyxID 凭证，Nocturne 不替用户付钱
-- `spec_id`（版式风格）由 LLM 基于内容挑选，客户端不需要指定
+## Manual setup
 
-## 状态
+Prereqs: [Bun](https://bun.sh/) ≥ 1.3, git, macOS or Linux.
 
-v0-alpha scaffolding in progress — see [issue tracker](https://github.com/eanzhao/Nocturne/issues?q=label%3Av0-alpha) for the active workstreams. Stack committed: **TypeScript + Bun + Hono + Supabase Postgres + chrono-storage + NyxID**.
+```bash
+git clone git@github.com:eanzhao/Nocturne.git ~/Code/Nocturne
+cd ~/Code/Nocturne
+bun install
+bun run test
 
-## Run locally
+# Compile the CLI into ~/.bun/bin (pick your target)
+bun build --compile --minify \
+  --target=bun-darwin-arm64 \
+  ./src/cli/format.ts \
+  --outfile ~/.bun/bin/nocturne-format
+
+# Install the agent skill (optional — needed only for Claude Code / Cursor)
+mkdir -p ~/.claude/skills/nocturne
+cp .claude/skills/nocturne-format/SKILL.md ~/.claude/skills/nocturne/SKILL.md
+
+nocturne-format status
+```
+
+## Usage
+
+```bash
+# stdin → ./out/<slug>.html
+echo "Weekly retro: shipped the CLI, closed 3 PRs..." | nocturne-format
+
+# file input
+nocturne-format --in report.md
+
+# explicit output
+nocturne-format --in report.md --out ~/Desktop/page.html
+
+# show which auth path is active
+nocturne-format status
+```
+
+The CLI prints the absolute path of the generated HTML to stdout. Open it with `open` (macOS) or `xdg-open` (Linux).
+
+## Picking a model
+
+`NOCTURNE_OPENAI_MODEL` is routed by prefix to whichever provider is ready on your NyxID account:
+
+| Prefix | Provider (NyxID slug) |
+|---|---|
+| `gpt-*` | `openai` / `openai-codex` |
+| `claude-*` | `anthropic` |
+| `deepseek-*` | `deepseek` |
+| `gemini-*` | `gemini` |
+
+Run `nocturne-format status` to see your ready providers.
+
+## Environment variables (all optional)
+
+| Variable | Default | Notes |
+|---|---|---|
+| `NOCTURNE_OPENAI_API_KEY` | _(unset)_ | Fallback when NyxID isn't available. |
+| `NOCTURNE_OPENAI_BASE_URL` | `https://api.openai.com/v1` | Fallback only; ignored in NyxID mode. |
+| `NOCTURNE_OPENAI_MODEL` | `gpt-4o-mini` | Shared by both modes; gateway routes by prefix. |
+| `NOCTURNE_OUT_DIR` | `./out` | Where output goes when `--out` is not set. |
+
+## Project structure
+
+```
+Nocturne/
+├── src/
+│   ├── cli/                # format CLI + NyxID auth consumer + status subcommand
+│   ├── core/pipeline.ts    # planner → spec lookup → render (storage-agnostic)
+│   ├── llm/                # OpenAI-compat client (shared by CLI + HTTP)
+│   ├── renderer/           # JSX renderer, base CSS, per-spec CSS
+│   │   └── specs/          # executive-broadsheet / quiet-ledger / guji-classical
+│   ├── routes/             # HTTP-service endpoints (optional deploy)
+│   └── server.ts           # Bun.serve entry for downstream-service mode
+├── .claude/skills/         # Repo-local agent skill
+├── db/migrations/          # Supabase schema (HTTP-service mode)
+└── deploy/                 # systemd + nginx configs (HTTP-service mode)
+```
+
+## HTTP service (optional — NyxID downstream deployment)
+
+Nocturne also ships as an HTTP service that sits behind the NyxID proxy at `/api/v1/proxy/s/nocturne/format`. The CLI above is independent of this path — most users never run the server. See [AGENTS.md](AGENTS.md) for the full contract.
 
 ```bash
 bun install
-cp .env.example .env        # fill in DATABASE_URL, NYXID_*, CHRONO_STORAGE_URL
+cp .env.example .env        # fill DATABASE_URL, NYXID_*, CHRONO_STORAGE_URL
 bun run dev                 # http://localhost:7701
-curl localhost:7701/health  # {"status":"ok","service":"nocturne",...}
+
+psql "$(cat ~/.supabase-credentials)" -f db/migrations/001_nocturne_schema.sql
+bun run build               # linux-x64 binary → dist/nocturne
 ```
 
-Type-check:
+## References
 
-```bash
-bun run typecheck
-```
-
-Build a self-contained linux-x64 binary (used by the `deploy-nocturne` skill):
-
-```bash
-bun run build              # produces dist/nocturne
-```
-
-Apply the v0-alpha Supabase migration:
-
-```bash
-DATABASE_URL="$(cat ~/.supabase-credentials)" \
-  psql "$DATABASE_URL" -f db/migrations/001_nocturne_schema.sql
-```
-
-## Local CLI (no NyxID, no Postgres, no chrono-storage)
-
-For local use without the NyxID stack, render any content to an HTML file with an OpenAI-compatible API key:
-
-```bash
-export NOCTURNE_OPENAI_API_KEY=sk-...
-echo "..." | bun run format                # stdin → ./out/<slug>.html
-bun run format --in content.md              # file → ./out/<slug>.html
-bun run format --in content.md --out ./page.html
-```
-
-Supported providers: any OpenAI-compatible chat/completions endpoint — OpenAI, OpenRouter, local `llama.cpp` server, etc. Configure via env vars:
-
-- `NOCTURNE_OPENAI_BASE_URL` (default: `https://api.openai.com/v1`)
-- `NOCTURNE_OPENAI_MODEL` (default: `gpt-4o-mini`)
-- `NOCTURNE_OUT_DIR` (default: `./out`)
-
-AI agents (Claude Code, Cursor, ...) can discover this CLI automatically via the `.claude/skills/nocturne-format` skill shipped in this repo.
-
----
-
-Part of the [NyxID](https://github.com/ChronoAIProject/NyxID) ecosystem.
+- [NyxID](https://github.com/ChronoAIProject/NyxID) — the identity + credential broker Nocturne integrates with
+- [AGENTS.md](AGENTS.md) — architecture notes, HTTP contract, NyxID integration details
+- [DESIGN.md](DESIGN.md) — design language for the aesthetic specs
+- [Issue tracker](https://github.com/eanzhao/Nocturne/issues) — active workstreams

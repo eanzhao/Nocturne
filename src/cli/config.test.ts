@@ -1,17 +1,19 @@
 import { describe, expect, it } from "bun:test";
-import { loadLocalConfig, LocalConfigError } from "./config.ts";
+import { loadLocalConfig } from "./config.ts";
 
 describe("loadLocalConfig", () => {
-  it("requires NOCTURNE_OPENAI_API_KEY", () => {
-    expect(() => loadLocalConfig({})).toThrow(LocalConfigError);
-  });
-
-  it("returns defaults when only the api key is set", () => {
-    const cfg = loadLocalConfig({ NOCTURNE_OPENAI_API_KEY: "sk-x" });
-    expect(cfg.apiKey).toBe("sk-x");
+  it("accepts an empty env; apiKey is undefined when not set", () => {
+    // NyxID-only flow is allowed: no env vars required at config-load time.
+    const cfg = loadLocalConfig({});
+    expect(cfg.apiKey).toBeUndefined();
     expect(cfg.baseUrl).toBe("https://api.openai.com/v1");
     expect(cfg.model).toBe("gpt-4o-mini");
     expect(cfg.outDir).toBe("./out");
+  });
+
+  it("returns the api key when set", () => {
+    const cfg = loadLocalConfig({ NOCTURNE_OPENAI_API_KEY: "sk-x" });
+    expect(cfg.apiKey).toBe("sk-x");
   });
 
   it("honors overrides", () => {
