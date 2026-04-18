@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
+  listProxyServices,
+  normalizeLlmRoute,
   NyxIDStatusError,
   readNyxIDTokens,
   resolveNyxIDGateway,
@@ -146,6 +148,110 @@ describe("resolveNyxIDGateway", () => {
       });
     try {
       await resolveNyxIDGateway(tokens, { fetchImpl });
+      throw new Error("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(NyxIDStatusError);
+      expect((err as NyxIDStatusError).hint).toBe("malformed");
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// normalizeLlmRoute — accepts slug or path, rejects URLs/empty
+
+describe("normalizeLlmRoute", () => {
+  it("returns null for empty/auto/gateway (all mean: use the LLM gateway)", () => {
+    expect(normalizeLlmRoute(undefined)).toBeNull();
+    expect(normalizeLlmRoute("")).toBeNull();
+    expect(normalizeLlmRoute("   ")).toBeNull();
+    expect(normalizeLlmRoute("auto")).toBeNull();
+    expect(normalizeLlmRoute("Gateway")).toBeNull();
+  });
+
+  it("wraps a bare slug into /api/v1/proxy/s/<slug>", () => {
+    expect(normalizeLlmRoute("chrono-llm")).toBe("/api/v1/proxy/s/chrono-llm");
+    expect(normalizeLlmRoute("  my-svc  ")).toBe("/api/v1/proxy/s/my-svc");
+  });
+
+  it("preserves a full path; strips trailing slashes", () => {
+    expect(normalizeLlmRoute("/api/v1/proxy/s/foo")).toBe(
+      "/api/v1/proxy/s/foo",
+    );
+    expect(normalizeLlmRoute("/api/v1/proxy/s/foo/")).toBe(
+      "/api/v1/proxy/s/foo",
+    );
+  });
+
+  it("rejects full URLs (returns null so caller can warn)", () => {
+    expect(normalizeLlmRoute("https://nyx.example.com/foo")).toBeNull();
+    expect(normalizeLlmRoute("//nyx.example.com/foo")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// listProxyServices — happy path, auth, malformed
+
+describe("listProxyServices", () => {
+  const tokens = {
+    baseUrl: "https://nyx.example.com",
+    accessToken: "tok-abc",
+  };
+
+  it("returns a flattened list with defaults for optional fields", async () => {
+    const fetchImpl = async (url: string, init?: RequestInit) => {
+      expect(url).toBe("https://nyx.example.com/api/v1/proxy/services");
+      const auth = new Headers(init?.headers).get("Authorization");
+      expect(auth).toBe("Bearer tok-abc");
+      return new Response(
+        JSON.stringify({
+          services: [
+            {
+              slug: "chrono-llm",
+              name: "Chrono LLM",
+              connected: false,
+              requires_connection: true,
+              service_category: "connection",
+            },
+            { slug: "foo-bare" }, // only slug — defaults fill in
+          ],
+        }),
+        { status: 200 },
+      );
+    };
+    const services = await listProxyServices(tokens, { fetchImpl });
+    expect(services).toHaveLength(2);
+    expect(services[0]).toMatchObject({
+      slug: "chrono-llm",
+      name: "Chrono LLM",
+      connected: false,
+      requiresConnection: true,
+      category: "connection",
+    });
+    expect(services[1]).toMatchObject({
+      slug: "foo-bare",
+      name: "foo-bare", // falls back to slug
+      connected: false,
+      requiresConnection: false,
+      category: "unknown",
+    });
+  });
+
+  it("throws NyxIDStatusError(unauthorized) on 401", async () => {
+    const fetchImpl = async () => new Response("", { status: 401 });
+    try {
+      await listProxyServices(tokens, { fetchImpl });
+      throw new Error("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(NyxIDStatusError);
+      expect((err as NyxIDStatusError).hint).toBe("unauthorized");
+    }
+  });
+
+  it("throws NyxIDStatusError(malformed) on schema mismatch", async () => {
+    const fetchImpl = async () =>
+      new Response(JSON.stringify({ not_services: [] }), { status: 200 });
+    try {
+      await listProxyServices(tokens, { fetchImpl });
       throw new Error("should have thrown");
     } catch (err) {
       expect(err).toBeInstanceOf(NyxIDStatusError);

@@ -36,10 +36,17 @@ export interface LocalConfig {
   baseUrl: string;
   model: string;
   outDir: string;
+  /**
+   * Optional override for the NyxID request path. When set, the format
+   * pipeline calls `{nyxid_base}/api/v1/proxy/s/<slug>` instead of the LLM
+   * Gateway, so the request flows through a user-registered proxy service
+   * (e.g. `chrono-llm`). `undefined` means "use the gateway" (default).
+   */
+  llmRoute: string | undefined;
   sources: Record<ConfigKey, ConfigSource>;
 }
 
-const DEFAULTS: Required<Omit<ConfigFile, "api_key">> = {
+const DEFAULTS: Required<Omit<ConfigFile, "api_key" | "llm_route">> = {
   base_url: "https://api.openai.com/v1",
   model: "gpt-4o-mini",
   out_dir: "./out",
@@ -53,6 +60,7 @@ const EnvSchema = z.object({
   NOCTURNE_OPENAI_BASE_URL: z.string().url().optional(),
   NOCTURNE_OPENAI_MODEL: z.string().min(1).optional(),
   NOCTURNE_OUT_DIR: z.string().min(1).optional(),
+  NOCTURNE_LLM_ROUTE: z.string().min(1).optional(),
 });
 
 /**
@@ -68,6 +76,7 @@ export function loadLocalConfig(
     NOCTURNE_OPENAI_BASE_URL: emptyToUndef(env.NOCTURNE_OPENAI_BASE_URL),
     NOCTURNE_OPENAI_MODEL: emptyToUndef(env.NOCTURNE_OPENAI_MODEL),
     NOCTURNE_OUT_DIR: emptyToUndef(env.NOCTURNE_OUT_DIR),
+    NOCTURNE_LLM_ROUTE: emptyToUndef(env.NOCTURNE_LLM_ROUTE),
   };
   const parsed = EnvSchema.safeParse(envNormalized);
   if (!parsed.success) {
@@ -114,17 +123,24 @@ export function loadLocalConfig(
     parsed.data.NOCTURNE_OPENAI_API_KEY,
     file.api_key,
   );
+  const llmRoute = pick(
+    "llm_route",
+    parsed.data.NOCTURNE_LLM_ROUTE,
+    file.llm_route,
+  );
 
   return {
     apiKey: apiKey.value,
     baseUrl: baseUrl.value!,
     model: model.value!,
     outDir: outDir.value!,
+    llmRoute: llmRoute.value,
     sources: {
       model: model.source,
       base_url: baseUrl.source,
       out_dir: outDir.source,
       api_key: apiKey.source,
+      llm_route: llmRoute.source,
     },
   };
 }

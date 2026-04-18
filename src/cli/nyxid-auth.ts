@@ -175,3 +175,128 @@ export async function resolveNyxIDGateway(
     readyProviders: ready,
   };
 }
+
+/*
+ * NyxID proxy services — user-registered HTTP services that NyxID proxies
+ * under `/api/v1/proxy/s/<slug>/*`, injecting credentials. Distinct from
+ * the LLM Gateway (which is prefix-routed, built-in providers only).
+ *
+ * Treated as LLM providers for Nocturne's purposes: a user can route
+ * `renderPage`'s planner call through any of these by setting config
+ * `llm_route=<slug>` (or a full path like `/api/v1/proxy/s/<slug>`).
+ */
+const ProxyServicesResponse = z.object({
+  services: z.array(
+    z.object({
+      slug: z.string(),
+      name: z.string().optional(),
+      description: z.string().optional(),
+      connected: z.boolean().optional(),
+      requires_connection: z.boolean().optional(),
+      service_category: z.string().optional(),
+    }),
+  ),
+});
+
+export interface NyxIDProxyService {
+  slug: string;
+  name: string;
+  connected: boolean;
+  requiresConnection: boolean;
+  category: string;
+}
+
+/**
+ * List proxy services visible to the current user. Does not throw on an
+ * empty list — returns `[]`. Surfaces the same `NyxIDStatusError` kinds
+ * as `resolveNyxIDGateway` for symmetry.
+ */
+export async function listProxyServices(
+  tokens: NyxIDTokens,
+  opts: { fetchImpl?: FetchLike; timeoutMs?: number } = {},
+): Promise<NyxIDProxyService[]> {
+  const fetchImpl = opts.fetchImpl ?? fetch;
+  const timeoutMs = opts.timeoutMs ?? 5_000;
+  const url = `${tokens.baseUrl}/api/v1/proxy/services`;
+
+  let res: Response;
+  try {
+    res = await fetchImpl(url, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${tokens.accessToken}` },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (err) {
+    throw new NyxIDStatusError(
+      "network",
+      `NyxID proxy services fetch failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  if (res.status === 401) {
+    throw new NyxIDStatusError(
+      "unauthorized",
+      "NyxID rejected the access token (401). Run `nyxid login` to refresh.",
+      401,
+    );
+  }
+  if (!res.ok) {
+    throw new NyxIDStatusError(
+      "network",
+      `NyxID proxy services returned HTTP ${res.status}`,
+      res.status,
+    );
+  }
+
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch (err) {
+    throw new NyxIDStatusError(
+      "malformed",
+      `NyxID proxy services returned non-JSON: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  const parsed = ProxyServicesResponse.safeParse(body);
+  if (!parsed.success) {
+    throw new NyxIDStatusError(
+      "malformed",
+      `NyxID proxy services envelope did not match expected shape: ${parsed.error.message}`,
+    );
+  }
+
+  return parsed.data.services.map((s) => ({
+    slug: s.slug,
+    name: s.name ?? s.slug,
+    connected: s.connected ?? false,
+    requiresConnection: s.requires_connection ?? false,
+    category: s.service_category ?? "unknown",
+  }));
+}
+
+/**
+ * Normalize a user-typed `llm_route` value to a NyxID request path.
+ *
+ * Accepts:
+ *   - bare slug:  `chrono-llm`          → `/api/v1/proxy/s/chrono-llm`
+ *   - full path:  `/api/v1/proxy/s/foo` → `/api/v1/proxy/s/foo` (untouched)
+ *   - empty/auto/gateway (case-insensitive): `""`, returned as `null`,
+ *     meaning "use the LLM Gateway, don't override".
+ *
+ * URLs (anything with `://`) are rejected — the gateway/proxy domain is
+ * always the NyxID base URL; a full URL here almost certainly means the
+ * user misunderstood the contract, and silently falling back to the
+ * gateway would hide the mistake. Caller should surface the `null`
+ * result from this function to the user when they typed something weird.
+ *
+ * Matches aevatar's `normalizeUserLlmRoute` shape so the two codebases
+ * read and write the same config values.
+ */
+export function normalizeLlmRoute(raw: string | undefined): string | null {
+  const s = (raw ?? "").trim();
+  if (!s || /^auto$/i.test(s) || /^gateway$/i.test(s)) return null;
+  if (s.includes("://") || s.startsWith("//")) return null;
+  if (s.startsWith("/")) return s.replace(/\/+$/, "");
+  return `/api/v1/proxy/s/${s.replace(/^\/+|\/+$/g, "")}`;
+}

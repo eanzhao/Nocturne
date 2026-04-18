@@ -13,7 +13,9 @@ describe("loadLocalConfig", () => {
       base_url: "default",
       out_dir: "default",
       api_key: "default",
+      llm_route: "default",
     });
+    expect(cfg.llmRoute).toBeUndefined();
   });
 
   it("file values are used when env is empty", () => {
@@ -24,18 +26,30 @@ describe("loadLocalConfig", () => {
         base_url: "https://nyx.example.com/gw/v1",
         out_dir: "/tmp/nocturne",
         api_key: "sk-from-file",
+        llm_route: "chrono-llm",
       },
     );
     expect(cfg.model).toBe("deepseek-chat");
     expect(cfg.baseUrl).toBe("https://nyx.example.com/gw/v1");
     expect(cfg.outDir).toBe("/tmp/nocturne");
     expect(cfg.apiKey).toBe("sk-from-file");
+    expect(cfg.llmRoute).toBe("chrono-llm");
     expect(cfg.sources).toEqual({
       model: "file",
       base_url: "file",
       out_dir: "file",
       api_key: "file",
+      llm_route: "file",
     });
+  });
+
+  it("env NOCTURNE_LLM_ROUTE wins over file llm_route", () => {
+    const cfg = loadLocalConfig(
+      { NOCTURNE_LLM_ROUTE: "another-service" },
+      { llm_route: "chrono-llm" },
+    );
+    expect(cfg.llmRoute).toBe("another-service");
+    expect(cfg.sources.llm_route).toBe("env");
   });
 
   it("env wins over file", () => {
