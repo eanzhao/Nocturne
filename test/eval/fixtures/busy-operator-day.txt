@@ -1,0 +1,23 @@
+Morning, Yiqi. Here's what's on the plate for today, 17 April 2026.
+
+The NyxID proxy rollout is your top-of-mind item — the staging dry-run last night
+flagged three services whose delegation tokens weren't being injected, and the
+fix ships at 10:30 today with a planned 15-minute re-dry-run window right after.
+Downstream: Nocturne and Aevatar both depend on this landing clean before Friday's
+partner demo. Watchlist: the GitHub Actions cache hit rate on the proxy repo
+dropped to 42% this week (severity med) — not blocking, but eating 3 minutes per
+PR. The Aliyun ECS that fronts nocturne.eanzhao.com is showing 78% mem on the
+node-exporter (severity med). The chrono-storage S3 egress was over budget
+on the 15th (severity high) — finance wants an explanation by EOD.
+
+Calendar: 09:30 standup with the infra pod. 11:00 design review for the
+guji-classical print CSS (Vivliostyle integration). 14:00 1:1 with Yuhe about
+onboarding. 16:00 a 30-minute window you blocked for deep work on the spec
+taxonomy doc.
+
+Two notes worth flagging. First, the community thread on the NyxID Discord
+asked whether delegation tokens carry a TTL field the downstream can read —
+yes they do, expires_at, but it's undocumented. Worth a 10-minute doc PR this
+week. Second, Claude-Opus-4.8 just dropped and early benchmarks suggest the
+planner-quality on structured JSON output is materially better — queue a
+re-eval once our test harness lands.

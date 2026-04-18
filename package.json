@@ -9,7 +9,8 @@
     "start": "bun run src/server.ts",
     "build": "mkdir -p dist && bun build --compile --minify --target=bun-linux-x64 ./src/server.ts --outfile ./dist/nocturne",
     "typecheck": "bunx tsc --noEmit",
-    "test": "bun test src/schema src/utils src/storage src/index src/middleware src/llm src/renderer src/routes/view.test.ts src/routes/rate.test.ts src/routes/archive.test.ts src/routes/archive-share.test.ts && bun test src/routes/format.test.ts"
+    "test": "bun test src/schema src/utils src/storage src/index src/middleware src/llm src/renderer src/routes/view.test.ts src/routes/rate.test.ts src/routes/archive.test.ts src/routes/archive-share.test.ts test/e2e test/eval && bun test src/routes/format.test.ts",
+    "test:coverage": "bun test --coverage"
   },
   "dependencies": {
     "@hono/zod-openapi": "^0.19.0",
