@@ -1,0 +1,21 @@
+/*
+ * Per-spec CSS for `quiet-ledger`.
+ *
+ * Architecture scaffold for DESIGN.md § "shared layer is structural, not
+ * aesthetic" — every spec owns a dedicated CSS file so future visual work
+ * can diverge without re-flowing `base.css`.
+ *
+ * Today this file only carries the bracketed-text severity style (the one
+ * visual rule that is *structurally* selected by `severity_style` in the
+ * spec JSON). Shared typography/chrome/layout still lives in base.css —
+ * follow-up work differentiates each spec's visual voice per the issue.
+ */
+
+/* severity_style: bracketed-text */
+.sev-bracket {
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+  margin-right: 0.3em;
+}

@@ -8,6 +8,19 @@ import { raw } from 'hono/html';
 import BASE_CSS from './base.css' with { type: 'text' };
 import PRINT_CSS from './print.css' with { type: 'text' };
 
+// Per-spec CSS. Each spec owns its own file so visual evolution is local
+// (see issue #15 / DESIGN.md § "shared layer is structural, not aesthetic").
+// The renderer inlines whichever matches `spec.id`; the others never ship.
+import SPEC_CSS_EXECUTIVE_BROADSHEET from './specs/executive-broadsheet.css' with { type: 'text' };
+import SPEC_CSS_QUIET_LEDGER from './specs/quiet-ledger.css' with { type: 'text' };
+import SPEC_CSS_GUJI_CLASSICAL from './specs/guji-classical.css' with { type: 'text' };
+
+const SPEC_CSS: Record<string, string> = {
+  'executive-broadsheet': SPEC_CSS_EXECUTIVE_BROADSHEET,
+  'quiet-ledger': SPEC_CSS_QUIET_LEDGER,
+  'guji-classical': SPEC_CSS_GUJI_CLASSICAL,
+};
+
 import { type AestheticSpec, type BlockName } from '../schema/aesthetic-spec.ts';
 import type { DailyBrief } from '../schema/daily-brief.ts';
 import { CHROME_SCRIPT, Chrome, ProvenanceStrip, type ChromeCtx } from './blocks/Chrome.tsx';
@@ -210,6 +223,7 @@ export function renderPage(
   <title>${escapeText(brief.title)}</title>
   <style data-nocturne="tokens">${rootVars}</style>
   <style data-nocturne="base">${BASE_CSS}</style>
+  <style data-nocturne="spec" data-spec-id="${escapeAttr(spec.id)}">${SPEC_CSS[spec.id] ?? ''}</style>
   <style data-nocturne="print">${PRINT_CSS}</style>`;
 
   const bodyClass = `${wmClass} ${specClass}`;
