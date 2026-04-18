@@ -11,14 +11,18 @@
  *   15 bytes * log2(256) / log2(62)  ≈  20.16 characters
  *
  * That's comfortably past the 72-bit "never collide in practice" threshold and
- * short enough to paste into a tweet without pain. The byte count is kept in
- * `config.PAGE_ID_BYTES` so it can be bumped without a code change.
+ * short enough to paste into a tweet without pain. The default byte count is
+ * kept inline here so this utility stays usable outside the server runtime.
  *
  * `crypto.getRandomValues` is the Web Crypto CSPRNG — present in Bun globally,
  * cryptographically secure, and faster than pulling in `node:crypto` for what
  * is effectively a 15-byte fill.
  */
-import { config } from "../config.ts";
+
+// Default entropy: 15 bytes ≈ 120 bits. Kept inline so this module does not
+// couple to server-side config; callers that want a different size pass it
+// as an argument.
+const DEFAULT_PAGE_ID_BYTES = 15;
 
 /**
  * Base62 alphabet. The order matches the well-known GMP/bitcoin/base62
@@ -57,9 +61,11 @@ function bytesToBase62(bytes: Uint8Array): string {
  * Return a new page_id. Fresh random bytes every call; callers must never
  * cache the result.
  *
- * @param bytes Entropy in bytes. Defaults to `config.PAGE_ID_BYTES` (15).
+ * @param bytes Entropy in bytes. Defaults to `DEFAULT_PAGE_ID_BYTES` (15).
  */
-export function generatePageId(bytes: number = config.PAGE_ID_BYTES): string {
+export function generatePageId(
+  bytes: number = DEFAULT_PAGE_ID_BYTES,
+): string {
   if (!Number.isInteger(bytes) || bytes < 1) {
     throw new RangeError(
       `generatePageId: bytes must be a positive integer, got ${String(bytes)}`,
