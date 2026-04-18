@@ -27,6 +27,8 @@ const ConfigSchema = z.object({
 
   // Used for HMAC-deriving public user slugs (archive URLs)
   NYXID_SERVICE_SECRET: z.string().min(32),
+  NOCTURNE_STATIC_BEARER: z.string().min(32).optional(),
+  NOCTURNE_STATIC_BEARER_FORCE: z.enum(["0", "1"]).default("0"),
 
   // Model served via NyxID LLM Gateway for the layout planner
   NOCTURNE_PLANNER_MODEL: z.string().min(1).default("gpt-5.4"),

@@ -335,3 +335,108 @@ describe("optionalNyxidAuth", () => {
     expect(await res.json()).toEqual({ user_id: USER_ID });
   });
 });
+
+describe("nyxidAuth — static-bearer fallback", () => {
+  const STATIC_BEARER = "tok-test-tok-test-tok-test-tok-test";
+  const STATIC_USER_ID = "00000000-0000-0000-0000-000000000001";
+
+  async function runStaticBearerCase(opts: {
+    env?: Record<string, string>;
+    unsetEnv?: string[];
+    headers?: Record<string, string>;
+  }) {
+    const childEnv = {
+      ...process.env,
+      ...ENV_DEFAULTS,
+      ...(opts.env ?? {}),
+    } as Record<string, string>;
+    for (const key of opts.unsetEnv ?? []) {
+      delete childEnv[key];
+    }
+
+    const script = `
+      import { Hono } from "hono";
+
+      const app = new Hono();
+      const { nyxidAuth } = await import("./src/middleware/auth.ts");
+      app.use("*", nyxidAuth);
+      app.get("/whoami", (c) => c.json({ user_id: c.get("user_id") }));
+
+      const res = await app.request(
+        new Request("http://test.local/whoami", {
+          headers: ${JSON.stringify(opts.headers ?? {})},
+        }),
+      );
+
+      console.log(JSON.stringify({
+        status: res.status,
+        body: await res.json(),
+      }));
+    `;
+
+    const proc = Bun.spawn({
+      cmd: ["bun", "-e", script],
+      cwd: process.cwd(),
+      env: childEnv,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const stdout = await new Response(proc.stdout).text();
+    const stderr = await new Response(proc.stderr).text();
+    const exitCode = await proc.exited;
+
+    expect(exitCode).toBe(0);
+    return {
+      stderr,
+      result: JSON.parse(stdout.trim()) as {
+        status: number;
+        body: { error?: string; user_id?: string | null };
+      },
+    };
+  }
+
+  test("env not set: Authorization bearer still returns 401 missing_identity", async () => {
+    const { result } = await runStaticBearerCase({
+      unsetEnv: ["NOCTURNE_STATIC_BEARER"],
+      headers: { authorization: "Bearer whatever" },
+    });
+
+    expect(result.status).toBe(401);
+    expect(result.body).toEqual({ error: "missing_identity" });
+  });
+
+  test("env set + matching bearer + no NyxID headers returns sentinel user", async () => {
+    const { stderr, result } = await runStaticBearerCase({
+      env: { NOCTURNE_STATIC_BEARER: STATIC_BEARER },
+      headers: { authorization: `Bearer ${STATIC_BEARER}` },
+    });
+
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ user_id: STATIC_USER_ID });
+    expect(stderr).toContain("auth: static bearer accepted");
+  });
+
+  test("env set + wrong bearer falls through to 401 missing_identity", async () => {
+    const { result } = await runStaticBearerCase({
+      env: { NOCTURNE_STATIC_BEARER: STATIC_BEARER },
+      headers: { authorization: "Bearer wrong-token" },
+    });
+
+    expect(result.status).toBe(401);
+    expect(result.body).toEqual({ error: "missing_identity" });
+  });
+
+  test("production env + force off disables the static bearer path", async () => {
+    const { result } = await runStaticBearerCase({
+      env: {
+        NODE_ENV: "production",
+        NOCTURNE_STATIC_BEARER: STATIC_BEARER,
+        NOCTURNE_STATIC_BEARER_FORCE: "0",
+      },
+      headers: { authorization: `Bearer ${STATIC_BEARER}` },
+    });
+
+    expect(result.status).toBe(401);
+    expect(result.body).toEqual({ error: "missing_identity" });
+  });
+});
