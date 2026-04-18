@@ -23,27 +23,37 @@ import {
 import { planDailyBriefWithOpenAI } from "../llm/openai.ts";
 import { loadLocalConfig, LocalConfigError } from "./config.ts";
 
-interface Args {
+export interface Args {
   inPath?: string;
   outPath?: string;
   outDir?: string;
+  help?: boolean;
 }
 
-function parseArgs(argv: string[]): Args {
+export class ArgsError extends Error {}
+
+/**
+ * Pure arg parser — throws `ArgsError` on malformed input, returns `Args`.
+ * Flag-taking options (`--in`, `--out`, `--out-dir`) require a non-flag value
+ * after them; missing values fail loudly rather than silently falling back.
+ */
+export function parseArgs(argv: string[]): Args {
   const a: Args = {};
   for (let i = 0; i < argv.length; i++) {
     const v = argv[i];
-    if (v === "--in") {
-      a.inPath = argv[++i];
-    } else if (v === "--out") {
-      a.outPath = argv[++i];
-    } else if (v === "--out-dir") {
-      a.outDir = argv[++i];
+    if (v === "--in" || v === "--out" || v === "--out-dir") {
+      const next = argv[i + 1];
+      if (next === undefined || next.startsWith("-")) {
+        throw new ArgsError(`${v} requires a path`);
+      }
+      i++;
+      if (v === "--in") a.inPath = next;
+      else if (v === "--out") a.outPath = next;
+      else a.outDir = next;
     } else if (v === "-h" || v === "--help") {
-      printHelp();
-      process.exit(0);
+      a.help = true;
     } else {
-      fail(`unknown arg: ${v}`);
+      throw new ArgsError(`unknown arg: ${v}`);
     }
   }
   return a;
@@ -100,7 +110,17 @@ function resolveOutPath(args: Args, defaultDir: string, pageId: string): string 
 }
 
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
+  let args: Args;
+  try {
+    args = parseArgs(process.argv.slice(2));
+  } catch (err) {
+    if (err instanceof ArgsError) fail(err.message);
+    throw err;
+  }
+  if (args.help) {
+    printHelp();
+    process.exit(0);
+  }
 
   let cfg;
   try {
@@ -143,9 +163,11 @@ async function main(): Promise<void> {
   process.stdout.write(`${outPath}\n`);
 }
 
-main().catch((err) => {
-  process.stderr.write(
-    `error: ${err instanceof Error ? err.message : String(err)}\n`,
-  );
-  process.exit(1);
-});
+if (import.meta.main) {
+  main().catch((err) => {
+    process.stderr.write(
+      `error: ${err instanceof Error ? err.message : String(err)}\n`,
+    );
+    process.exit(1);
+  });
+}

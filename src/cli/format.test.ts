@@ -3,6 +3,36 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { ArgsError, parseArgs } from "./format.ts";
+
+describe("parseArgs", () => {
+  it("returns empty Args for no argv", () => {
+    expect(parseArgs([])).toEqual({});
+  });
+
+  it("parses --in, --out, --out-dir", () => {
+    expect(parseArgs(["--in", "a.md", "--out", "b.html", "--out-dir", "x"]))
+      .toEqual({ inPath: "a.md", outPath: "b.html", outDir: "x" });
+  });
+
+  it("flags help", () => {
+    expect(parseArgs(["--help"])).toEqual({ help: true });
+    expect(parseArgs(["-h"])).toEqual({ help: true });
+  });
+
+  it("throws ArgsError when --in is missing a value", () => {
+    expect(() => parseArgs(["--in"])).toThrow(ArgsError);
+  });
+
+  it("throws ArgsError when --in is followed by another flag", () => {
+    expect(() => parseArgs(["--in", "--out", "x"])).toThrow(ArgsError);
+  });
+
+  it("throws ArgsError on unknown arg", () => {
+    expect(() => parseArgs(["--bogus"])).toThrow(ArgsError);
+  });
+});
+
 let server: ReturnType<typeof Bun.serve>;
 let outDir: string;
 
