@@ -28,6 +28,9 @@ const ConfigSchema = z.object({
   // Used for HMAC-deriving public user slugs (archive URLs)
   NYXID_SERVICE_SECRET: z.string().min(32),
 
+  // Model served via NyxID LLM Gateway for the layout planner
+  NOCTURNE_PLANNER_MODEL: z.string().min(1).default("gpt-5.4"),
+
   // Entropy for page_id generation (15 bytes ≈ 120 bits)
   PAGE_ID_BYTES: z.coerce.number().int().min(8).max(32).default(15),
 });
