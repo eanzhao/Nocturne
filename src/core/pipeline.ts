@@ -32,6 +32,8 @@ export interface GenerateOptions {
   createdAt?: string;
   /** Omit or pass empty string to suppress the archive link in the page chrome. */
   ownerSlug?: string;
+  /** Entropy for the generated page_id (bytes). Defaults to the slug module's built-in. */
+  pageIdBytes?: number;
 }
 
 export interface GenerateResult {
@@ -99,7 +101,7 @@ export async function generatePage(
   const spec = specs.get(plan.brief.spec_id);
   if (!spec) throw new SpecNotFoundError(plan.brief.spec_id);
 
-  const pageId = generatePageId();
+  const pageId = generatePageId(opts.pageIdBytes);
   const createdAt = opts.createdAt ?? new Date().toISOString();
 
   const html = renderPage(plan.brief, spec, {

@@ -132,6 +132,9 @@ formatRouter.post("/format", nyxidAuth, async (c) => {
   }
 
   // --- Monotonic per-user sequence ------------------------------------------
+  // Allocated before the planner runs; a planner failure consumes a number
+  // and produces a gap. `seq` is display-only ("Issue #N"), not a contiguity
+  // guarantee, so gaps are acceptable — don't "fix" this back to planner-first.
   let seq: number;
   try {
     seq = await supabase.nextSequence(user_id);
@@ -150,6 +153,7 @@ formatRouter.post("/format", nyxidAuth, async (c) => {
       userId: user_id,
       seq,
       ownerSlug: owner_slug,
+      pageIdBytes: config.PAGE_ID_BYTES,
     });
   } catch (err) {
     if (err instanceof SpecNotFoundError) {
