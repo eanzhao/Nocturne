@@ -1,0 +1,127 @@
+/*
+ * Nocturne — print stylesheet (issue #9, Part 2).
+ *
+ * Scope:
+ *   - @media print rules only. Screen styles live in per-spec CSS.
+ *   - Handles the cross-cutting print contract: what is hidden, what is
+ *     preserved, and what page geometry each spec gets.
+ *
+ * Per-spec tokens (paper / orientation / margin) are applied via classes that
+ * the renderer drops on <body>: `.spec-executive-broadsheet`,
+ * `.spec-quiet-ledger`, `.spec-guji-classical`. Values match each spec JSON's
+ * `print` block in DESIGN.md.
+ *
+ * This file intentionally reads no external CSS custom properties at the
+ * @page level — browsers do not let @page rules read vars from arbitrary
+ * elements. Values are inlined per spec class instead.
+ */
+
+/* ---------------------------------------------------------------------- */
+/* Default page geometry: executive-broadsheet (the default when in doubt) */
+/* ---------------------------------------------------------------------- */
+@page {
+  size: A4 portrait;
+  margin: 18mm;
+}
+
+@media print {
+  /* Hide the chrome zone (Export-as-PDF button, rating widgets, copy-link,
+   * any inline popovers). These never belong on paper. */
+  .chrome-zone,
+  .chrome-zone * {
+    display: none !important;
+  }
+
+  /* The provenance strip — "Issue #<N> · <date> · <model> · NOCTURNE" — must
+   * survive printing. It is the page's archival metadata. */
+  .provenance-strip {
+    display: block !important;
+    break-inside: avoid;
+  }
+
+  /* Sensible defaults every spec inherits unless it overrides. */
+  html, body {
+    background: #ffffff !important; /* printers don't need the tinted ground */
+    color: #000000;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Keep the tinted paper colors when the spec class opts in. Each spec
+   * re-asserts its own bg so we don't lose the aesthetic. */
+  .spec-executive-broadsheet { background: #f7f1df !important; color: #1f1913; }
+  .spec-quiet-ledger         { background: #faf6ea !important; color: #272018; }
+  .spec-guji-classical       { background: #f3e7c8 !important; color: #1c1508; }
+
+  /* Break behavior: headlines and quote blocks stay with their context. */
+  h1, h2, h3 { break-after: avoid-page; }
+  blockquote, .hero-quote, .pull-quote { break-inside: avoid-page; }
+
+  /* Links shouldn't inflate the page with (url) annotations. */
+  a[href]::after { content: ""; }
+}
+
+/* ---------------------------------------------------------------------- */
+/* Per-spec @page overrides                                               */
+/*                                                                        */
+/* Browsers apply the @page rule matched to the printing document. We use */
+/* named page selectors bound to the spec class via `page: <name>` on the */
+/* body. This is the portable way to get per-spec margins + orientation.  */
+/* ---------------------------------------------------------------------- */
+
+/* executive-broadsheet: A4 portrait, 18mm (matches the default above, but
+ * we name it explicitly so a future spec change doesn't silently inherit). */
+@page executive-broadsheet {
+  size: A4 portrait;
+  margin: 18mm;
+}
+.spec-executive-broadsheet { page: executive-broadsheet; }
+
+/* quiet-ledger: A4 or A5 portrait, 22mm. We pick A4 as the print default;
+ * A5 is only reachable via an explicit `@media print and (...)` block below
+ * when the renderer eventually lets the user choose. */
+@page quiet-ledger {
+  size: A4 portrait;
+  margin: 22mm;
+}
+.spec-quiet-ledger { page: quiet-ledger; }
+
+/* guji-classical: vertical-rl writing mode, A4 LANDSCAPE, 14mm margin, and
+ * the CJK-vertical printing expectation from the spec JSON.
+ *
+ * This is scaffolded NOW so the contract is committed before the renderer
+ * for guji-classical exists (per issue #9 direction). The actual renderer
+ * work lands with issue #5; this stylesheet will already match.
+ */
+@page guji-classical {
+  size: A4 landscape;
+  margin: 14mm;
+}
+.spec-guji-classical {
+  page: guji-classical;
+}
+
+@media print {
+  .spec-guji-classical {
+    /* Vertical writing mode must hold through print; browsers are
+     * famously inconsistent here, which is one reason Vivliostyle is the
+     * chosen PDF engine instead of `window.print()` for this spec. */
+    writing-mode: vertical-rl;
+    -webkit-writing-mode: vertical-rl;
+    text-orientation: mixed;
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+/* Export-as-PDF client UX — printing must not leak the popover            */
+/* ---------------------------------------------------------------------- */
+@media print {
+  /* The "Use 'Save as PDF' in your browser's print dialog" popover that
+   * issue #5's chrome-zone component will attach. Hidden defensively even
+   * though .chrome-zone is already display:none — the popover may render
+   * in a portal outside the chrome zone. */
+  .export-pdf-popover,
+  [data-nocturne-popover="export-pdf"] {
+    display: none !important;
+  }
+}
