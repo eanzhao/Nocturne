@@ -74,19 +74,36 @@ describe("buildObjectUrl (via fetch call shape)", () => {
     expect(url.searchParams.get("contentType")).toBe("text/html");
   });
 
-  test("getObject hits GET /api/buckets/:bucket/objects with key", async () => {
-    installFetch(async () =>
-      new Response("body", {
+  test("getObject mints a presigned URL then fetches the body", async () => {
+    const presignedUrl =
+      "https://s3.test.invalid/chrono/nocturne/foo%2Fbar?sig=abc";
+    installFetch(async ({ input }) => {
+      const u = String(input);
+      if (u.includes("/presigned-url")) {
+        return jsonResponse({
+          data: { presignedUrl, expiresAt: "2099-01-01T00:00:00Z" },
+          error: null,
+        });
+      }
+      return new Response("body", {
         status: 200,
         headers: { "content-type": "text/plain" },
-      }),
-    );
+      });
+    });
     await getObject("nocturne", "foo/bar");
-    const call = calls[0]!;
-    expect(call.init?.method).toBe("GET");
-    const url = new URL(call.input as string);
-    expect(url.pathname).toBe("/api/buckets/nocturne/objects");
-    expect(url.searchParams.get("key")).toBe("foo/bar");
+    expect(calls.length).toBe(2);
+
+    // Hop 1 — mint
+    const mintCall = calls[0]!;
+    expect(mintCall.init?.method).toBe("GET");
+    const mintUrl = new URL(mintCall.input as string);
+    expect(mintUrl.pathname).toBe("/api/buckets/nocturne/presigned-url");
+    expect(mintUrl.searchParams.get("key")).toBe("foo/bar");
+
+    // Hop 2 — body
+    const bodyCall = calls[1]!;
+    expect(bodyCall.init?.method).toBe("GET");
+    expect(String(bodyCall.input)).toBe(presignedUrl);
   });
 
   test("objectExists uses HEAD", async () => {
@@ -107,12 +124,21 @@ describe("timeout wiring", () => {
     expect(__TIMEOUTS__.put).toBe(8_000);
   });
 
-  test("getObject passes an AbortSignal tied to the 5s budget", async () => {
-    installFetch(async () => new Response("", { status: 200 }));
+  test("getObject passes an AbortSignal on each hop; mint + body budgets sum to 5s", async () => {
+    installFetch(async ({ input }) => {
+      if (String(input).includes("/presigned-url")) {
+        return jsonResponse({
+          data: { presignedUrl: "https://s3.test.invalid/x", expiresAt: "x" },
+          error: null,
+        });
+      }
+      return new Response("", { status: 200 });
+    });
     await getObject("b", "k");
-    const signal = calls[0]!.init?.signal;
-    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(calls[0]!.init?.signal).toBeInstanceOf(AbortSignal);
+    expect(calls[1]!.init?.signal).toBeInstanceOf(AbortSignal);
     expect(__TIMEOUTS__.get).toBe(5_000);
+    expect(__TIMEOUTS__.getMint + __TIMEOUTS__.getBody).toBe(__TIMEOUTS__.get);
   });
 
   test("objectExists passes an AbortSignal tied to the 3s budget", async () => {
@@ -152,7 +178,7 @@ describe("timeout wiring", () => {
 });
 
 describe("status-code → code mapping", () => {
-  test("getObject 404 → not_found", async () => {
+  test("getObject 404 on mint → not_found (no body fetch)", async () => {
     installFetch(async () =>
       jsonResponse(
         { data: null, error: { code: "OBJECT_NOT_FOUND", message: "gone" } },
@@ -168,9 +194,11 @@ describe("status-code → code mapping", () => {
     expect(caught).toBeInstanceOf(StorageError);
     expect((caught as StorageError).code).toBe("not_found");
     expect((caught as StorageError).upstreamCode).toBe("OBJECT_NOT_FOUND");
+    // mint returned 404 → we MUST NOT have attempted the body fetch.
+    expect(calls.length).toBe(1);
   });
 
-  test("getObject 503 → unavailable (distinct from 404)", async () => {
+  test("getObject 503 on mint → unavailable", async () => {
     installFetch(async () =>
       jsonResponse(
         { data: null, error: { code: "S3_UNAVAILABLE", message: "down" } },
@@ -186,6 +214,61 @@ describe("status-code → code mapping", () => {
     expect(caught).toBeInstanceOf(StorageError);
     expect((caught as StorageError).code).toBe("unavailable");
     expect((caught as StorageError).status).toBe(503);
+  });
+
+  test("getObject body 404 (gone between hops) → not_found", async () => {
+    installFetch(async ({ input }) => {
+      if (String(input).includes("/presigned-url")) {
+        return jsonResponse({
+          data: { presignedUrl: "https://s3.test.invalid/x", expiresAt: "x" },
+          error: null,
+        });
+      }
+      return new Response("", { status: 404 });
+    });
+    await expect(getObject("b", "k")).rejects.toMatchObject({
+      name: "StorageError",
+      code: "not_found",
+    });
+  });
+
+  test("getObject body 503 → unavailable", async () => {
+    installFetch(async ({ input }) => {
+      if (String(input).includes("/presigned-url")) {
+        return jsonResponse({
+          data: { presignedUrl: "https://s3.test.invalid/x", expiresAt: "x" },
+          error: null,
+        });
+      }
+      return new Response("", { status: 503 });
+    });
+    await expect(getObject("b", "k")).rejects.toMatchObject({
+      name: "StorageError",
+      code: "unavailable",
+    });
+  });
+
+  test("getObject mint with malformed JSON → integrity", async () => {
+    installFetch(async () =>
+      new Response("not-json", {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    await expect(getObject("b", "k")).rejects.toMatchObject({
+      name: "StorageError",
+      code: "integrity",
+    });
+  });
+
+  test("getObject mint missing presignedUrl → integrity", async () => {
+    installFetch(async () =>
+      jsonResponse({ data: { expiresAt: "x" }, error: null }),
+    );
+    await expect(getObject("b", "k")).rejects.toMatchObject({
+      name: "StorageError",
+      code: "integrity",
+    });
   });
 
   test("objectExists returns false on 404 and true on 200", async () => {
@@ -237,14 +320,19 @@ describe("status-code → code mapping", () => {
     });
   });
 
-  test("getObject returns body + contentType on 200", async () => {
-    installFetch(
-      async () =>
-        new Response("hello-world", {
-          status: 200,
-          headers: { "content-type": "text/plain; charset=utf-8" },
-        }),
-    );
+  test("getObject returns body + contentType on 200 (body hop's header)", async () => {
+    installFetch(async ({ input }) => {
+      if (String(input).includes("/presigned-url")) {
+        return jsonResponse({
+          data: { presignedUrl: "https://s3.test.invalid/x", expiresAt: "x" },
+          error: null,
+        });
+      }
+      return new Response("hello-world", {
+        status: 200,
+        headers: { "content-type": "text/plain; charset=utf-8" },
+      });
+    });
     const { body, contentType } = await getObject("b", "k");
     expect(contentType).toBe("text/plain; charset=utf-8");
     expect(new TextDecoder().decode(body)).toBe("hello-world");

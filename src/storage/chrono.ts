@@ -48,6 +48,10 @@ export class StorageError extends Error {
 const TIMEOUT_PUT_MS = 8_000;
 const TIMEOUT_GET_MS = 5_000;
 const TIMEOUT_HEAD_MS = 3_000;
+// Internal split of the 5s GET budget across the two-hop presigned-URL flow.
+// 2s to mint + 3s to fetch body; neither hop can starve the other.
+const TIMEOUT_GET_MINT_MS = 2_000;
+const TIMEOUT_GET_BODY_MS = 3_000;
 
 /**
  * Build an absolute chrono-storage URL with `key` (and any extra) query
@@ -193,65 +197,145 @@ export async function putObject(
 }
 
 /**
+ * Build the presigned-URL endpoint for reading `bucket/key`.
+ */
+function buildPresignedUrlEndpoint(bucket: string, key: string): string {
+  const base = config.CHRONO_STORAGE_URL.replace(/\/+$/, "");
+  const u = new URL(
+    `${base}/api/buckets/${encodeURIComponent(bucket)}/presigned-url`,
+  );
+  u.searchParams.set("key", key);
+  return u.toString();
+}
+
+/**
  * Download the raw bytes of `bucket/key`.
  *
- * Timeout: 5s. Throws `not_found` (404) distinctly from `unavailable` (5xx).
+ * chrono-storage has no content-retrieval endpoint on `/api/buckets/:bucket/objects`
+ * — that path is the LIST endpoint. The real object-body flow is two HTTP calls:
+ *
+ *   1. `GET /api/buckets/:bucket/presigned-url?key=K` → `{presignedUrl, expiresAt}`
+ *   2. `fetch(presignedUrl)` → the actual S3 response body.
+ *
+ * Both hops share the 5s budget; the first gets 2s and the second gets the
+ * remaining 3s, so a stuck mint can't starve the body fetch.
+ *
+ * Timeout: 5s total. Throws `not_found` (404 from either hop) distinctly from
+ * `unavailable` (5xx).
  */
 export async function getObject(
   bucket: string,
   key: string,
 ): Promise<{ body: ArrayBuffer; contentType: string }> {
-  const url = buildObjectUrl(bucket, key);
-  let res: Response;
+  // --- Hop 1: mint the presigned URL -----------------------------------------
+  const mintUrl = buildPresignedUrlEndpoint(bucket, key);
+  let mintRes: Response;
   try {
-    res = await fetch(url, {
+    mintRes = await fetch(mintUrl, {
       method: "GET",
-      signal: AbortSignal.timeout(TIMEOUT_GET_MS),
+      signal: AbortSignal.timeout(TIMEOUT_GET_MINT_MS),
     });
   } catch (err) {
-    throw toStorageError(err, "GET", bucket, key);
+    throw toStorageError(err, "GET(mint)", bucket, key);
   }
 
-  if (res.status === 404) {
-    const upstreamCode = await extractUpstreamCode(res);
+  if (mintRes.status === 404) {
+    const upstreamCode = await extractUpstreamCode(mintRes);
     throw new StorageError(
       "not_found",
       `chrono-storage GET ${bucket}/${key}: not found`,
       { status: 404, upstreamCode },
     );
   }
-  if (res.status >= 500) {
-    const upstreamCode = await extractUpstreamCode(res);
+  if (mintRes.status >= 500) {
+    const upstreamCode = await extractUpstreamCode(mintRes);
     throw new StorageError(
       "unavailable",
-      `chrono-storage GET ${bucket}/${key}: upstream ${res.status}`,
-      { status: res.status, upstreamCode },
+      `chrono-storage GET ${bucket}/${key}: mint upstream ${mintRes.status}`,
+      { status: mintRes.status, upstreamCode },
     );
   }
-  if (!res.ok) {
-    const upstreamCode = await extractUpstreamCode(res);
+  if (!mintRes.ok) {
+    const upstreamCode = await extractUpstreamCode(mintRes);
     throw new StorageError(
       "integrity",
-      `chrono-storage GET ${bucket}/${key}: ${res.status} ${upstreamCode ?? ""}`.trim(),
-      { status: res.status, upstreamCode },
+      `chrono-storage GET ${bucket}/${key}: mint ${mintRes.status} ${upstreamCode ?? ""}`.trim(),
+      { status: mintRes.status, upstreamCode },
+    );
+  }
+
+  let mintJson: {
+    data?: { presignedUrl?: unknown; expiresAt?: unknown } | null;
+  } | null = null;
+  try {
+    mintJson = (await mintRes.json()) as {
+      data?: { presignedUrl?: unknown; expiresAt?: unknown } | null;
+    };
+  } catch (err) {
+    throw new StorageError(
+      "integrity",
+      `chrono-storage GET ${bucket}/${key}: mint returned non-JSON`,
+      { status: mintRes.status, cause: err },
+    );
+  }
+  const presignedUrl = mintJson?.data?.presignedUrl;
+  if (typeof presignedUrl !== "string" || presignedUrl.length === 0) {
+    throw new StorageError(
+      "integrity",
+      `chrono-storage GET ${bucket}/${key}: mint missing presignedUrl`,
+      { status: mintRes.status },
+    );
+  }
+
+  // --- Hop 2: fetch the object body ------------------------------------------
+  let bodyRes: Response;
+  try {
+    bodyRes = await fetch(presignedUrl, {
+      method: "GET",
+      signal: AbortSignal.timeout(TIMEOUT_GET_BODY_MS),
+    });
+  } catch (err) {
+    throw toStorageError(err, "GET(body)", bucket, key);
+  }
+
+  if (bodyRes.status === 404) {
+    // S3 404 after a successful mint means the object was deleted between
+    // hops (or the presigned URL was scoped to a non-existent key, which
+    // the mint endpoint SHOULD have rejected). Either way: not_found.
+    throw new StorageError(
+      "not_found",
+      `chrono-storage GET ${bucket}/${key}: object gone after mint`,
+      { status: 404 },
+    );
+  }
+  if (bodyRes.status >= 500) {
+    throw new StorageError(
+      "unavailable",
+      `chrono-storage GET ${bucket}/${key}: body upstream ${bodyRes.status}`,
+      { status: bodyRes.status },
+    );
+  }
+  if (!bodyRes.ok) {
+    throw new StorageError(
+      "integrity",
+      `chrono-storage GET ${bucket}/${key}: body ${bodyRes.status}`,
+      { status: bodyRes.status },
     );
   }
 
   let body: ArrayBuffer;
   try {
-    body = await res.arrayBuffer();
+    body = await bodyRes.arrayBuffer();
   } catch (err) {
     throw new StorageError(
       "integrity",
       `chrono-storage GET ${bucket}/${key}: body read failed`,
-      { status: res.status, cause: err },
+      { status: bodyRes.status, cause: err },
     );
   }
 
-  // chrono-storage sets Content-Type on HEAD; GET here returns the object
-  // body directly, so we fall back to the response's own Content-Type.
   const contentType =
-    res.headers.get("content-type") ?? "application/octet-stream";
+    bodyRes.headers.get("content-type") ?? "application/octet-stream";
   return { body, contentType };
 }
 
@@ -297,5 +381,7 @@ export async function objectExists(
 export const __TIMEOUTS__ = {
   put: TIMEOUT_PUT_MS,
   get: TIMEOUT_GET_MS,
+  getMint: TIMEOUT_GET_MINT_MS,
+  getBody: TIMEOUT_GET_BODY_MS,
   head: TIMEOUT_HEAD_MS,
 } as const;
