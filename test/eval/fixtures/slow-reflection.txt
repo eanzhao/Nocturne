@@ -1,0 +1,19 @@
+Today is quiet. There's nothing on the calendar after 11am and I don't want
+to schedule anything.
+
+You spent last week shipping the Nocturne v0-alpha to production. The dual-write
+ordering held up, the planner fallback rate is 4% across the first hundred
+user briefs, and the vertical-rl guji spec landed without a single print-layout
+bug report. That's the kind of week that should be sat with for a day before
+starting the next thing.
+
+A thought worth dwelling on: the original DESIGN.md bet was that three
+aesthetics would be enough — "let the writing decide the form, not the system
+decide the writing." The 4% fallback rate says the LLM agrees with that bet
+most of the time. The question for the next cycle isn't "add a fourth spec"
+but "is the three-spec gradient tuned correctly." Executive-broadsheet is
+the default 68% of the time, quiet-ledger 25%, guji-classical 7%. Does that
+distribution match what users actually want, or does it just match what the
+planner defaults to when unsure?
+
+Nothing urgent today. Read slowly.
