@@ -202,7 +202,7 @@ export function renderPage(
 
   // Hero is mandatory (title is required by schema). It lives outside the
   // zone grid so it always anchors the top of the page.
-  const heroHtml = (<Hero brief={brief} />).toString();
+  const heroHtml = (<Hero brief={brief} createdAt={ctx.created_at} />).toString();
 
   const zonesHtml = zoneEntries
     .map(([name, blocks]) =>
