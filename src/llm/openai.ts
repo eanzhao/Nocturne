@@ -4,14 +4,15 @@
  * (OpenAI, OpenRouter, Azure OpenAI, Together, llama.cpp server, ...).
  *
  * Goes straight to {baseUrl}/chat/completions. No NyxID proxy, no delegation
- * token. The heavy lifting lives in `callOpenAICompletion` from gateway.ts;
- * this file only decides the URL and names the apiKey option.
+ * token. The heavy lifting lives in `callOpenAICompletion` from
+ * `openai-compat.ts`; this file only decides the URL and names the apiKey
+ * option.
  */
 import {
   callOpenAICompletion,
   type FetchLike,
   type PlannerResult,
-} from "./gateway.ts";
+} from "./openai-compat.ts";
 
 export interface PlanDailyBriefWithOpenAIOptions {
   apiKey: string;

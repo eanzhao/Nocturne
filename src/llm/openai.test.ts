@@ -1,7 +1,6 @@
-import "../routes/test-env.ts";
 import { describe, expect, it } from "bun:test";
 import { planDailyBriefWithOpenAI } from "./openai.ts";
-import { PlannerTimeout, PlannerUpstreamError } from "./gateway.ts";
+import { PlannerTimeout, PlannerUpstreamError } from "./openai-compat.ts";
 
 describe("planDailyBriefWithOpenAI", () => {
   it("calls the chat/completions URL with a Bearer api key and returns a brief", async () => {
