@@ -65,12 +65,35 @@ POST /format
 
 ## 状态
 
-早期设计阶段。下一步：
+v0-alpha scaffolding in progress — see [issue tracker](https://github.com/eanzhao/Nocturne/issues?q=label%3Av0-alpha) for the active workstreams. Stack committed: **TypeScript + Bun + Hono + Supabase Postgres + chrono-storage + NyxID**.
 
-- [ ] 敲定 `/format` 接口契约（OpenAPI spec）
-- [ ] 最小可用的渲染模板（一种风格先跑通）
-- [ ] Next.js 项目脚手架 + 存储层选型（KV / Postgres / R2）
-- [ ] 在 NyxID 上注册为 custom service，打通代理调用
+## Run locally
+
+```bash
+bun install
+cp .env.example .env        # fill in DATABASE_URL, NYXID_*, CHRONO_STORAGE_URL
+bun run dev                 # http://localhost:7701
+curl localhost:7701/health  # {"status":"ok","service":"nocturne",...}
+```
+
+Type-check:
+
+```bash
+bun run typecheck
+```
+
+Build a self-contained linux-x64 binary (used by the `deploy-nocturne` skill):
+
+```bash
+bun run build              # produces dist/nocturne
+```
+
+Apply the v0-alpha Supabase migration:
+
+```bash
+DATABASE_URL="$(cat ~/.supabase-credentials)" \
+  psql "$DATABASE_URL" -f db/migrations/001_nocturne_schema.sql
+```
 
 ---
 
