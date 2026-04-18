@@ -4,15 +4,20 @@
  * No HTTP, no DB, no identity concept beyond "here is a userId". Callers
  * (HTTP route, CLI) inject a planner callback and receive a string of HTML
  * plus metadata. Storage is their problem.
+ *
+ * Spec loading: v0 specs are imported via JSON import attributes so
+ * `bun build --compile` embeds them into the single-binary artifact. Do NOT
+ * reintroduce `fs.readdir` here — the archive's __dirname is not a real
+ * directory at runtime. See src/routes/format.ts for the prior fix.
  */
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
-
 import type { PlannerResult } from "../llm/gateway.ts";
 import {
   type AestheticSpec,
-  loadSpecs,
+  AestheticSpecSchema,
 } from "../schema/aesthetic-spec.ts";
+import executiveBroadsheetSpec from "../renderer/specs/executive-broadsheet.json" with { type: "json" };
+import quietLedgerSpec from "../renderer/specs/quiet-ledger.json" with { type: "json" };
+import gujiClassicalSpec from "../renderer/specs/guji-classical.json" with { type: "json" };
 import { renderPage } from "../renderer/render-page.tsx";
 import { generatePageId } from "../utils/slug.ts";
 
@@ -25,7 +30,7 @@ export interface GenerateOptions {
   seq: number;
   /** Override for determinism in tests. Defaults to `new Date().toISOString()`. */
   createdAt?: string;
-  /** Optional; when empty, the renderer suppresses the archive link. */
+  /** Omit or pass empty string to suppress the archive link in the page chrome. */
   ownerSlug?: string;
 }
 
@@ -38,24 +43,6 @@ export interface GenerateResult {
   rawLLMOutput?: PlannerResult["rawLLMOutput"];
 }
 
-const __filename = fileURLToPath(import.meta.url);
-// src/core/pipeline.ts → src/renderer/specs
-const SPECS_DIR = join(__filename, "../../renderer/specs");
-
-let _specsPromise: Promise<Map<string, AestheticSpec>> | null = null;
-
-function getSpecs(): Promise<Map<string, AestheticSpec>> {
-  if (_specsPromise === null) _specsPromise = loadSpecs(SPECS_DIR);
-  return _specsPromise;
-}
-
-/** Test hook: reset spec cache. */
-export function __resetSpecsForTesting(
-  installed?: Map<string, AestheticSpec>,
-): void {
-  _specsPromise = installed ? Promise.resolve(installed) : null;
-}
-
 export class SpecNotFoundError extends Error {
   readonly specId: string;
   constructor(specId: string) {
@@ -64,6 +51,43 @@ export class SpecNotFoundError extends Error {
     this.specId = specId;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Spec cache — mirrors src/routes/format.ts. Compile-binary safe.
+
+const V0_RAW_SPECS: unknown[] = [
+  executiveBroadsheetSpec,
+  quietLedgerSpec,
+  gujiClassicalSpec,
+];
+
+function buildV0Specs(): Map<string, AestheticSpec> {
+  const map = new Map<string, AestheticSpec>();
+  for (const raw of V0_RAW_SPECS) {
+    const parsed = AestheticSpecSchema.parse(raw);
+    map.set(parsed.id, parsed);
+  }
+  return map;
+}
+
+let _specsPromise: Promise<Map<string, AestheticSpec>> | null = null;
+
+function getSpecs(): Promise<Map<string, AestheticSpec>> {
+  if (_specsPromise === null) {
+    _specsPromise = Promise.resolve(buildV0Specs());
+  }
+  return _specsPromise;
+}
+
+/** Test hook: reset the cache so tests can install a stub spec set. */
+export function __resetSpecsForTesting(
+  installed?: Map<string, AestheticSpec>,
+): void {
+  _specsPromise = installed ? Promise.resolve(installed) : null;
+}
+
+// ---------------------------------------------------------------------------
+// Entry point
 
 export async function generatePage(
   content: string,
