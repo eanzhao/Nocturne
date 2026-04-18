@@ -29,7 +29,13 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { z } from "zod";
 
-export const CONFIG_KEYS = ["model", "base_url", "out_dir", "api_key"] as const;
+export const CONFIG_KEYS = [
+  "model",
+  "base_url",
+  "out_dir",
+  "api_key",
+  "llm_route",
+] as const;
 export type ConfigKey = (typeof CONFIG_KEYS)[number];
 
 const ConfigFileSchema = z
@@ -38,6 +44,11 @@ const ConfigFileSchema = z
     base_url: z.string().url().optional(),
     out_dir: z.string().min(1).optional(),
     api_key: z.string().min(1).optional(),
+    // `llm_route` — when set, NyxID path routes through a named proxy
+    // service (`/api/v1/proxy/s/<slug>`) instead of the LLM Gateway.
+    // Accepts a bare slug (`chrono-llm`) or a full path. Empty / missing =
+    // use the LLM Gateway (default).
+    llm_route: z.string().min(1).optional(),
   })
   .strict();
 

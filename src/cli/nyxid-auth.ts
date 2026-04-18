@@ -70,6 +70,13 @@ const LlmStatusResponse = z.object({
       status: z.string(),
     }),
   ),
+  /*
+   * Gateway-supported model prefix globs (`gpt-*`, `claude-*`, …). The
+   * LLM Gateway routes by matching a request's model name against these
+   * prefixes; we expose them via `models --route gateway` so users can
+   * see what the gateway will happily forward.
+   */
+  supported_models: z.array(z.string()).optional(),
 });
 
 export type LlmStatus = z.infer<typeof LlmStatusResponse>;
@@ -107,7 +114,11 @@ export type FetchLike = (
 export async function resolveNyxIDGateway(
   tokens: NyxIDTokens,
   opts: { fetchImpl?: FetchLike; timeoutMs?: number } = {},
-): Promise<{ gatewayUrl: string; readyProviders: string[] }> {
+): Promise<{
+  gatewayUrl: string;
+  readyProviders: string[];
+  supportedModels: string[];
+}> {
   const fetchImpl = opts.fetchImpl ?? fetch;
   const timeoutMs = opts.timeoutMs ?? 5_000;
   const url = `${tokens.baseUrl}/api/v1/llm/status`;
@@ -173,5 +184,265 @@ export async function resolveNyxIDGateway(
   return {
     gatewayUrl: parsed.data.gateway_url.replace(/\/+$/, ""),
     readyProviders: ready,
+    supportedModels: parsed.data.supported_models ?? [],
   };
+}
+
+/**
+ * List OpenAI-style models exposed by a specific proxy route. Hits
+ * `{nyxid}/{route}/models` — which works for any OpenAI-compatible
+ * upstream (Ollama, MLX-server, SiliconFlow, chrono-llm, …). Returns
+ * a sorted list of model IDs.
+ *
+ * Non-OpenAI upstreams (auth:token_exchange services like Lark Bot,
+ * or services whose target doesn't expose /models) will either return
+ * 404 or a non-OpenAI envelope — we surface both as a `malformed`
+ * `NyxIDStatusError` so the caller can print a friendly "not
+ * OpenAI-compatible" hint.
+ *
+ * `route` must be a normalized absolute path (as returned by
+ * `normalizeLlmRoute`), e.g. `/api/v1/proxy/s/chrono-llm`.
+ */
+export async function listRouteModels(
+  tokens: NyxIDTokens,
+  route: string,
+  opts: { fetchImpl?: FetchLike; timeoutMs?: number } = {},
+): Promise<string[]> {
+  const fetchImpl = opts.fetchImpl ?? fetch;
+  const timeoutMs = opts.timeoutMs ?? 10_000;
+  const url = `${tokens.baseUrl}${route.replace(/\/+$/, "")}/models`;
+
+  let res: Response;
+  try {
+    res = await fetchImpl(url, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${tokens.accessToken}` },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (err) {
+    throw new NyxIDStatusError(
+      "network",
+      `${url} fetch failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  if (res.status === 401) {
+    throw new NyxIDStatusError(
+      "unauthorized",
+      "NyxID rejected the access token (401). Run `nyxid login`.",
+      401,
+    );
+  }
+  if (res.status === 404) {
+    throw new NyxIDStatusError(
+      "malformed",
+      `Upstream for ${route} did not expose /models (404). Service may not be OpenAI-compatible.`,
+      404,
+    );
+  }
+  if (!res.ok) {
+    throw new NyxIDStatusError(
+      "network",
+      `${url} returned HTTP ${res.status}`,
+      res.status,
+    );
+  }
+
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch (err) {
+    throw new NyxIDStatusError(
+      "malformed",
+      `${url} returned non-JSON: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  // OpenAI contract: `{ object: "list", data: [{ id, ... }, ...] }`.
+  // Some self-hosted servers (Ollama native) return `{ models: [...] }`;
+  // we accept either. If neither shape matches, throw malformed.
+  const openaiShape = z.object({
+    data: z.array(z.object({ id: z.string() })),
+  });
+  const ollamaShape = z.object({
+    models: z.array(
+      z.union([
+        z.string(),
+        z.object({ name: z.string() }),
+        z.object({ model: z.string() }),
+      ]),
+    ),
+  });
+
+  const asOpenai = openaiShape.safeParse(body);
+  if (asOpenai.success) {
+    return asOpenai.data.data.map((m) => m.id).sort();
+  }
+  const asOllama = ollamaShape.safeParse(body);
+  if (asOllama.success) {
+    return asOllama.data.models
+      .map((m) =>
+        typeof m === "string"
+          ? m
+          : "name" in m
+            ? m.name
+            : m.model,
+      )
+      .sort();
+  }
+  throw new NyxIDStatusError(
+    "malformed",
+    `${url} envelope did not match OpenAI /models or Ollama /api/tags shape`,
+  );
+}
+
+/*
+ * NyxID connected services — the unified "keys API" at `/api/v1/keys`.
+ * This is the single source of truth for services the user has
+ * actually connected: each entry bundles the slug (routable via
+ * `/api/v1/proxy/s/<slug>/*`), a user-chosen label, the upstream URL,
+ * auth method, activity status, and optional catalog binding.
+ *
+ * Referenced in NyxID docs as "the primary entry point for users
+ * connecting external services" — which is exactly what we want to
+ * show when the user runs `nocturne-format status`.
+ */
+const KeysResponse = z.object({
+  keys: z.array(
+    z.object({
+      id: z.string(),
+      slug: z.string(),
+      label: z.string().optional(),
+      endpoint_url: z.string().optional(),
+      auth_method: z.string().optional(),
+      status: z.string().optional(),
+      is_active: z.boolean().optional(),
+      catalog_service_id: z.string().nullable().optional(),
+      catalog_service_name: z.string().nullable().optional(),
+      catalog_service_slug: z.string().nullable().optional(),
+      last_used_at: z.string().nullable().optional(),
+    }),
+  ),
+});
+
+export interface NyxIDUserService {
+  /** Developer-friendly slug, used to build `/api/v1/proxy/s/<slug>/*`. */
+  slug: string;
+  /**
+   * Display name. Prefer the user-chosen `label` (e.g. "MLX from
+   * MacStudio"); fall back to the catalog name (`Chrono LLM`); fall
+   * back to the slug so we always have something to print.
+   */
+  name: string;
+  /** Upstream URL NyxID forwards to (visible only for debugging/UX). */
+  endpointUrl: string | null;
+  /** Active services are the only ones that will actually proxy. */
+  active: boolean;
+  /** bearer, header, token_exchange, none, path, … */
+  authMethod: string;
+  /** True when this service inherits config from NyxID's catalog. */
+  fromCatalog: boolean;
+  /** ISO timestamp of the last proxy hit, or null if never used. */
+  lastUsedAt: string | null;
+}
+
+/**
+ * List the current user's connected services via `/api/v1/keys`. A
+ * single round-trip gives us slug + label + endpoint + activity in one
+ * shot, so we don't need the separate catalog-enrichment fetch that an
+ * earlier version required.
+ *
+ * Does not throw on an empty result — returns `[]`. Surfaces the same
+ * `NyxIDStatusError` kinds as `resolveNyxIDGateway`.
+ */
+export async function listUserServices(
+  tokens: NyxIDTokens,
+  opts: { fetchImpl?: FetchLike; timeoutMs?: number } = {},
+): Promise<NyxIDUserService[]> {
+  const fetchImpl = opts.fetchImpl ?? fetch;
+  const timeoutMs = opts.timeoutMs ?? 5_000;
+  const url = `${tokens.baseUrl}/api/v1/keys`;
+
+  let res: Response;
+  try {
+    res = await fetchImpl(url, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${tokens.accessToken}` },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (err) {
+    throw new NyxIDStatusError(
+      "network",
+      `NyxID keys fetch failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  if (res.status === 401) {
+    throw new NyxIDStatusError(
+      "unauthorized",
+      "NyxID rejected the access token (401). Run `nyxid login` to refresh.",
+      401,
+    );
+  }
+  if (!res.ok) {
+    throw new NyxIDStatusError(
+      "network",
+      `NyxID keys returned HTTP ${res.status}`,
+      res.status,
+    );
+  }
+
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch (err) {
+    throw new NyxIDStatusError(
+      "malformed",
+      `NyxID keys returned non-JSON: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  const parsed = KeysResponse.safeParse(body);
+  if (!parsed.success) {
+    throw new NyxIDStatusError(
+      "malformed",
+      `NyxID /api/v1/keys envelope did not match expected shape: ${parsed.error.message}`,
+    );
+  }
+
+  return parsed.data.keys.map((k) => ({
+    slug: k.slug,
+    name: k.label ?? k.catalog_service_name ?? k.slug,
+    endpointUrl: k.endpoint_url ?? null,
+    active: (k.is_active ?? true) && (k.status ?? "active") === "active",
+    authMethod: k.auth_method ?? "unknown",
+    fromCatalog: Boolean(k.catalog_service_id),
+    lastUsedAt: k.last_used_at ?? null,
+  }));
+}
+
+/**
+ * Normalize a user-typed `llm_route` value to a NyxID request path.
+ *
+ * Accepts:
+ *   - bare slug:  `chrono-llm`          → `/api/v1/proxy/s/chrono-llm`
+ *   - full path:  `/api/v1/proxy/s/foo` → `/api/v1/proxy/s/foo` (untouched)
+ *   - empty/auto/gateway (case-insensitive): `""`, returned as `null`,
+ *     meaning "use the LLM Gateway, don't override".
+ *
+ * URLs (anything with `://`) are rejected — the gateway/proxy domain is
+ * always the NyxID base URL; a full URL here almost certainly means the
+ * user misunderstood the contract, and silently falling back to the
+ * gateway would hide the mistake. Caller should surface the `null`
+ * result from this function to the user when they typed something weird.
+ *
+ * Matches aevatar's `normalizeUserLlmRoute` shape so the two codebases
+ * read and write the same config values.
+ */
+export function normalizeLlmRoute(raw: string | undefined): string | null {
+  const s = (raw ?? "").trim();
+  if (!s || /^auto$/i.test(s) || /^gateway$/i.test(s)) return null;
+  if (s.includes("://") || s.startsWith("//")) return null;
+  if (s.startsWith("/")) return s.replace(/\/+$/, "");
+  return `/api/v1/proxy/s/${s.replace(/^\/+|\/+$/g, "")}`;
 }
