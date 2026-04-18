@@ -2,6 +2,27 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod';
 
+/**
+ * Canonical list of block names the renderer knows how to mount.
+ *
+ * This is the single source of truth — both the schema (below) and
+ * `src/renderer/render-page.tsx`'s `BLOCK_COMPONENTS` map key off it. A
+ * spec JSON that mentions a name not in this list fails validation at
+ * load time, so a typo like `"priortities"` surfaces on boot rather than
+ * silently producing a half-rendered page.
+ */
+export const BLOCK_NAMES = [
+  'hero_quote',
+  'pull_quote',
+  'summary',
+  'top_priorities',
+  'timeline',
+  'watchlist',
+  'notes',
+] as const;
+
+export type BlockName = (typeof BLOCK_NAMES)[number];
+
 const paperValue = z.enum(['A4', 'A5']);
 
 const severityColors = z.object({
@@ -46,7 +67,7 @@ export const AestheticSpecSchema = z.object({
     max_width: z.number().int().positive(),
   }),
   hero_priority_treatment: z.enum(['first-as-hero', 'all-equal', 'single-only']),
-  block_zones: z.record(z.string(), z.array(z.string())),
+  block_zones: z.record(z.string(), z.array(z.enum(BLOCK_NAMES))),
   overflow_strategy: z.record(z.string(), overflowEntry),
   pull_quote_role: z.enum(['hero-center', 'coda', 'epigraph', 'none']),
   severity_style: z.enum(['colored-dot', 'bracketed-text', 'traditional-mark']),

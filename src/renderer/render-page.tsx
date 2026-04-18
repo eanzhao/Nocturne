@@ -8,7 +8,7 @@ import { raw } from 'hono/html';
 import BASE_CSS from './base.css' with { type: 'text' };
 import PRINT_CSS from './print.css' with { type: 'text' };
 
-import type { AestheticSpec } from '../schema/aesthetic-spec.ts';
+import { type AestheticSpec, type BlockName } from '../schema/aesthetic-spec.ts';
 import type { DailyBrief } from '../schema/daily-brief.ts';
 import { CHROME_SCRIPT, Chrome, ProvenanceStrip, type ChromeCtx } from './blocks/Chrome.tsx';
 import { Hero } from './blocks/Hero.tsx';
@@ -32,7 +32,7 @@ export interface RenderCtx extends ChromeCtx {}
  * Names match the strings used inside AestheticSpec JSON files.
  */
 const BLOCK_COMPONENTS: Record<
-  string,
+  BlockName,
   (props: { brief: DailyBrief; spec: AestheticSpec }) => unknown
 > = {
   hero_quote: ({ brief, spec }) => <PullQuote brief={brief} spec={spec} />,
@@ -45,6 +45,9 @@ const BLOCK_COMPONENTS: Record<
   watchlist: ({ brief, spec }) => <Watchlist brief={brief} spec={spec} />,
   notes: ({ brief, spec }) => <Notes brief={brief} spec={spec} />,
 };
+
+// The `Record<BlockName, ...>` typing above forces TS to fail if a new name
+// is added to BLOCK_NAMES without a matching component.
 
 /**
  * Writing-mode → html attribute value lookup. `html[writing-mode]` is not
@@ -129,18 +132,14 @@ function buildRootVariables(spec: AestheticSpec): string {
  */
 function renderZone(
   zoneName: string,
-  blockNames: string[],
+  blockNames: BlockName[],
   brief: DailyBrief,
   spec: AestheticSpec,
 ) {
   const cssClass = `zone zone-${zoneName}`;
   return (
     <section class={cssClass} data-zone={zoneName}>
-      {blockNames.map((name) => {
-        const Component = BLOCK_COMPONENTS[name];
-        if (!Component) return null;
-        return Component({ brief, spec }) as unknown;
-      })}
+      {blockNames.map((name) => BLOCK_COMPONENTS[name]({ brief, spec }) as unknown)}
     </section>
   );
 }
