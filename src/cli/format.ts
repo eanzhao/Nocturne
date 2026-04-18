@@ -43,9 +43,12 @@ import {
   writeConfigFile,
 } from "./config-file.ts";
 import {
+  listProxyServices,
   NyxIDStatusError,
+  normalizeLlmRoute,
   readNyxIDTokens,
   resolveNyxIDGateway,
+  type NyxIDProxyService,
   type NyxIDTokens,
 } from "./nyxid-auth.ts";
 
@@ -198,6 +201,8 @@ Env vars (override config file):
   NOCTURNE_OPENAI_MODEL     (default: gpt-4o-mini; NyxID routes by prefix —
                              gpt-*, claude-*, deepseek-*, gemini-*)
   NOCTURNE_OUT_DIR          (default: ./out)
+  NOCTURNE_LLM_ROUTE        (empty = LLM gateway; set to a proxy-service slug
+                             like "chrono-llm" to route through /api/v1/proxy/s/<slug>)
 `);
 }
 
@@ -238,15 +243,46 @@ interface PlannerSource {
   apiKey: string;
   baseUrl: string;
   model: string;
+  /** Set when NyxID path is routed through a proxy service, not the gateway. */
+  nyxidRoute?: string;
 }
 
 async function pickPlannerSource(
   tokens: NyxIDTokens | null,
-  env: { apiKey: string | undefined; model: string; baseUrl: string },
+  env: {
+    apiKey: string | undefined;
+    model: string;
+    baseUrl: string;
+    llmRoute: string | undefined;
+  },
 ): Promise<{ source: PlannerSource; warnings: string[] }> {
   const warnings: string[] = [];
 
   if (tokens !== null) {
+    // User-requested proxy-service route (e.g. `llm_route=chrono-llm`)
+    // short-circuits the LLM Gateway. We still use the NyxID access token
+    // as the bearer; NyxID validates + injects per-service credentials.
+    const route = normalizeLlmRoute(env.llmRoute);
+    if (route !== null) {
+      return {
+        source: {
+          label: "nyxid",
+          apiKey: tokens.accessToken,
+          baseUrl: `${tokens.baseUrl}${route}`,
+          model: env.model,
+          nyxidRoute: route,
+        },
+        warnings,
+      };
+    }
+    // If user typed a value that failed normalization (URL, empty after
+    // normalization, …), fall through to the gateway path but warn.
+    if (env.llmRoute !== undefined && env.llmRoute.trim() !== "") {
+      warnings.push(
+        `llm_route="${env.llmRoute}" is not a valid slug or path — falling back to gateway. Accepted: "chrono-llm" or "/api/v1/proxy/s/<slug>".`,
+      );
+    }
+
     try {
       const gateway = await resolveNyxIDGateway(tokens);
       return {
@@ -316,6 +352,7 @@ function runConfigList(cfg: LocalConfig): void {
     ["base_url", fmtValue("base_url", cfg.baseUrl), cfg.sources.base_url],
     ["out_dir", fmtValue("out_dir", cfg.outDir), cfg.sources.out_dir],
     ["api_key", fmtValue("api_key", cfg.apiKey), cfg.sources.api_key],
+    ["llm_route", fmtValue("llm_route", cfg.llmRoute), cfg.sources.llm_route],
   ];
   const keyW = Math.max(...rows.map((r) => r[0].length));
   const valW = Math.max(...rows.map((r) => r[1].length));
@@ -342,7 +379,9 @@ function runConfigGet(cfg: LocalConfig, key: ConfigKey): void {
         ? cfg.baseUrl
         : key === "out_dir"
           ? cfg.outDir
-          : cfg.apiKey;
+          : key === "api_key"
+            ? cfg.apiKey
+            : cfg.llmRoute;
   if (val === undefined) {
     process.exit(1);
   }
@@ -375,7 +414,12 @@ function runConfigUnset(key: ConfigKey): void {
 
 async function runStatus(
   tokens: NyxIDTokens | null,
-  env: { apiKey: string | undefined; apiKeySource: ConfigSource },
+  env: {
+    apiKey: string | undefined;
+    apiKeySource: ConfigSource;
+    llmRoute: string | undefined;
+    llmRouteSource: ConfigSource;
+  },
 ): Promise<void> {
   const lines: string[] = [];
   lines.push("Nocturne CLI auth status");
@@ -400,6 +444,51 @@ async function runStatus(
         );
       }
     }
+
+    // Proxy services are a parallel universe to the LLM gateway —
+    // listed separately so the user can see slugs to plug into
+    // `config set llm-route <slug>`.
+    try {
+      const services = await listProxyServices(tokens);
+      const byCategory = new Map<string, NyxIDProxyService[]>();
+      for (const s of services) {
+        if (!byCategory.has(s.category)) byCategory.set(s.category, []);
+        byCategory.get(s.category)!.push(s);
+      }
+      if (services.length === 0) {
+        lines.push("  proxy services : (none visible to this token)");
+      } else {
+        lines.push("  proxy services :");
+        // Surface the non-internal ones first — those are the
+        // user-configured integrations they came to this CLI to use.
+        const order = ["connection", "user", "custom", "internal"];
+        const seen = new Set<string>();
+        for (const cat of order) {
+          const group = byCategory.get(cat);
+          if (!group) continue;
+          seen.add(cat);
+          for (const s of group) {
+            lines.push(formatProxyServiceRow(s));
+          }
+        }
+        for (const [cat, group] of byCategory) {
+          if (seen.has(cat)) continue;
+          for (const s of group) {
+            lines.push(formatProxyServiceRow(s));
+          }
+        }
+      }
+    } catch (err) {
+      if (err instanceof NyxIDStatusError) {
+        lines.push(
+          `  proxy services : ${err.hint} — ${err.message}`,
+        );
+      } else {
+        lines.push(
+          `  proxy services : errored (${err instanceof Error ? err.message : String(err)})`,
+        );
+      }
+    }
   }
 
   const keyDisplay =
@@ -408,7 +497,27 @@ async function runStatus(
       : `set via ${env.apiKeySource} (${mask(env.apiKey)})`;
   lines.push(`  OpenAI API key : ${keyDisplay}`);
 
+  const routeNormalized = normalizeLlmRoute(env.llmRoute);
+  const routeDisplay =
+    env.llmRoute === undefined
+      ? "gateway (default)"
+      : routeNormalized === null
+        ? `"${env.llmRoute}" [invalid — falling back to gateway]`
+        : `${routeNormalized}  (from ${env.llmRouteSource})`;
+  lines.push(`  LLM route      : ${routeDisplay}`);
+
   process.stdout.write(`${lines.join("\n")}\n`);
+}
+
+function formatProxyServiceRow(s: NyxIDProxyService): string {
+  const status = s.connected
+    ? "connected"
+    : s.requiresConnection
+      ? "needs-connect"
+      : "";
+  const statusSuffix = status ? ` · ${status}` : "";
+  const nameBit = s.name && s.name !== s.slug ? `  "${s.name}"` : "";
+  return `    · ${s.slug}${nameBit}  [${s.category}${statusSuffix}]`;
 }
 
 // ---------------------------------------------------------------------------
@@ -479,6 +588,8 @@ async function main(): Promise<void> {
     await runStatus(tokens, {
       apiKey: cfg.apiKey,
       apiKeySource: cfg.sources.api_key,
+      llmRoute: cfg.llmRoute,
+      llmRouteSource: cfg.sources.llm_route,
     });
     return;
   }
@@ -491,6 +602,7 @@ async function main(): Promise<void> {
     apiKey: cfg.apiKey,
     baseUrl: cfg.baseUrl,
     model: cfg.model,
+    llmRoute: cfg.llmRoute,
   });
   for (const w of warnings) process.stderr.write(`warning: ${w}\n`);
 
