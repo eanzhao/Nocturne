@@ -20,6 +20,12 @@ export const BLOCK_NAMES = [
   'watchlist',
   'notes',
   'masthead_banner',
+  'ornament_strip',
+  'geometric_module',
+  'diagonal_slab',
+  'sidenote_column',
+  'figure_plate',
+  'figure_strip',
 ] as const;
 
 export type BlockName = (typeof BLOCK_NAMES)[number];

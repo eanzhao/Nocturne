@@ -140,3 +140,48 @@ describe('AestheticSpecSchema — visual_style_hint', () => {
     expect(result.success).toBe(false);
   });
 });
+
+describe('AestheticSpecSchema — new block names', () => {
+  const baseValidSpec = {
+    id: 'test-block-names',
+    name: 'Test',
+    description: 'For tests',
+    writing_mode: 'horizontal-lr',
+    fonts: { headline: 'a', body: 'a', label: 'a', mono: 'a' },
+    palette: { bg: '#fff', fg: '#000', muted: '#888', accent: null, hairline: '#000' },
+    spacing: { base: 4, column_gap: 16, column_count_desktop: 3, max_width: 780 },
+    hero_priority_treatment: 'first-as-hero',
+    overflow_strategy: {},
+    pull_quote_role: 'none',
+    severity_style: 'none',
+    visual_style_hint: 'hint',
+    print: { paper: 'A4', orientation: 'portrait', margin_mm: 16 },
+  };
+
+  const newNames = [
+    'ornament_strip',
+    'geometric_module',
+    'diagonal_slab',
+    'sidenote_column',
+    'figure_plate',
+    'figure_strip',
+  ] as const;
+
+  for (const name of newNames) {
+    it(`accepts "${name}" in block_zones`, () => {
+      const result = AestheticSpecSchema.safeParse({
+        ...baseValidSpec,
+        block_zones: { main: [name] },
+      });
+      expect(result.success).toBe(true);
+    });
+  }
+
+  it('rejects an unknown block name', () => {
+    const result = AestheticSpecSchema.safeParse({
+      ...baseValidSpec,
+      block_zones: { main: ['not_a_block' as never] },
+    });
+    expect(result.success).toBe(false);
+  });
+});
