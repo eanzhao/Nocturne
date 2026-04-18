@@ -9,7 +9,7 @@
  *     LLM Gateway back; if it isn't here, the service is misconfigured.
  *
  * Dual-write ordering (per DESIGN.md):
- *   LLM plan → nextSequence → page_id → renderPage → chrono.putObject → supabase.insertPage
+ *   nextSequence → generatePage(planner/spec/page_id/render) → chrono.putObject → supabase.insertPage
  *
  * Rationale: storage is cheap/expiring (chrono-storage is a blob bucket) but
  * the Postgres row is the authoritative index. If chrono succeeds and
@@ -45,21 +45,12 @@ import {
   planDailyBrief,
 } from "../llm/gateway.ts";
 import {
-  type AestheticSpec,
-  AestheticSpecSchema,
-} from "../schema/aesthetic-spec.ts";
-
-// Import the three v0 specs directly so `bun build --compile` embeds them
-// into the single-binary deploy artifact. Previously these were loaded via
-// fs.readdir at runtime, which fails when the binary's __dirname points
-// inside the compiled archive rather than a real directory on disk.
-import executiveBroadsheetSpec from "../renderer/specs/executive-broadsheet.json" with { type: "json" };
-import quietLedgerSpec from "../renderer/specs/quiet-ledger.json" with { type: "json" };
-import gujiClassicalSpec from "../renderer/specs/guji-classical.json" with { type: "json" };
-import { renderPage } from "../renderer/render-page.tsx";
+  generatePage,
+  SpecNotFoundError,
+  __resetSpecsForTesting as __resetPipelineSpecsForTesting,
+} from "../core/pipeline.ts";
 import * as chrono from "../storage/chrono.ts";
 import * as supabase from "../index/supabase.ts";
-import { generatePageId } from "../utils/slug.ts";
 
 // ---------------------------------------------------------------------------
 // Request schema
@@ -81,43 +72,8 @@ const FormatRequest = z.object({
 type FormatRequestBody = z.infer<typeof FormatRequest>;
 
 // ---------------------------------------------------------------------------
-// Spec cache.
-//
-// v0 specs are imported at the top of this file via JSON import attributes,
-// so `bun build --compile` embeds them. We Zod-validate each once at module
-// load and stash in a Map keyed by spec id. Same shape as the legacy
-// `loadSpecs()` return, but zero runtime filesystem traffic.
-
-const V0_RAW_SPECS: unknown[] = [
-  executiveBroadsheetSpec,
-  quietLedgerSpec,
-  gujiClassicalSpec,
-];
-
-function buildV0Specs(): Map<string, AestheticSpec> {
-  const map = new Map<string, AestheticSpec>();
-  for (const raw of V0_RAW_SPECS) {
-    const parsed = AestheticSpecSchema.parse(raw);
-    map.set(parsed.id, parsed);
-  }
-  return map;
-}
-
-let _specsPromise: Promise<Map<string, AestheticSpec>> | null = null;
-
-function getSpecs(): Promise<Map<string, AestheticSpec>> {
-  if (_specsPromise === null) {
-    _specsPromise = Promise.resolve(buildV0Specs());
-  }
-  return _specsPromise;
-}
-
-/** Test-only: reset the spec cache so tests can install a stub set. */
-export function __resetSpecsForTesting(
-  installed?: Map<string, AestheticSpec>,
-): void {
-  _specsPromise = installed ? Promise.resolve(installed) : null;
-}
+// Re-export so format.test.ts's existing hook keeps working.
+export const __resetSpecsForTesting = __resetPipelineSpecsForTesting;
 
 // ---------------------------------------------------------------------------
 // Owner slug derivation.
@@ -174,25 +130,6 @@ formatRouter.post("/format", nyxidAuth, async (c) => {
     return c.json({ error: "invalid_request" }, 400);
   }
 
-  // --- Planner ---------------------------------------------------------------
-  let plan;
-  try {
-    plan = await planDailyBrief(body.content, delegationToken);
-  } catch (err) {
-    return plannerErrorResponse(c, err);
-  }
-
-  // --- Spec lookup ----------------------------------------------------------
-  const specs = await getSpecs();
-  const spec = specs.get(plan.brief.spec_id);
-  if (!spec) {
-    // This is structurally impossible: DailyBriefBlock enforces spec_id ∈ {…},
-    // and loadSpecs fails fast if any of those is missing from disk. If it
-    // happens, the fallback 500 is the right answer — a partial spec set is
-    // a config error, not a user error.
-    return c.json({ error: "spec_not_found" }, 500);
-  }
-
   // --- Monotonic per-user sequence ------------------------------------------
   let seq: number;
   try {
@@ -201,35 +138,28 @@ formatRouter.post("/format", nyxidAuth, async (c) => {
     return indexErrorResponse(c, err);
   }
 
-  // --- Page id + owner slug -------------------------------------------------
-  const page_id = generatePageId();
   const owner_slug = ownerSlugFor(user_id);
-  const created_at = new Date().toISOString();
 
-  // --- Render ---------------------------------------------------------------
-  let html: string;
+  // --- Pipeline: planner → spec → render ------------------------------------
+  let generated: Awaited<ReturnType<typeof generatePage>>;
   try {
-    html = renderPage(plan.brief, spec, {
-      user_id,
-      seq,
-      page_id,
-      created_at,
+    generated = await generatePage(body.content, {
+      planner: (content) => planDailyBrief(content, delegationToken),
       model: config.NOCTURNE_PLANNER_MODEL,
-      owner_slug,
+      userId: user_id,
+      seq,
+      ownerSlug: owner_slug,
     });
   } catch (err) {
-    // The renderer reads disk once at module load; at request time the only
-    // failure path is sanitizer RangeError on oversized fields. Treat that
-    // as a planner output problem — the brief must not have passed schema.
-    return c.json(
-      {
-        error: "render_failed",
-        message: err instanceof Error ? err.message : String(err),
-      },
-      500,
-    );
+    if (err instanceof SpecNotFoundError) {
+      return c.json({ error: "spec_not_found" }, 500);
+    }
+    // All planner errors (PlannerTimeout/InvalidOutput/UpstreamError/RateLimited)
+    // bubble from generatePage since the planner callback doesn't wrap them.
+    return plannerErrorResponse(c, err);
   }
 
+  const { html, pageId: page_id } = generated;
   const storage_key = `${user_id}/${page_id}.html`;
 
   // --- Storage write (blob first, then index) -------------------------------
@@ -250,7 +180,7 @@ formatRouter.post("/format", nyxidAuth, async (c) => {
       page_id,
       user_id,
       storage_key,
-      spec_id: plan.brief.spec_id,
+      spec_id: generated.brief.spec_id,
       content_type: "daily_brief_v1",
     });
   } catch (err) {
@@ -259,12 +189,12 @@ formatRouter.post("/format", nyxidAuth, async (c) => {
 
   // --- Planner fallback logging (soft-failure — never derails the happy
   // path) ------------------------------------------------------------------
-  if (plan.fallbackReason) {
+  if (generated.fallbackReason) {
     try {
       await supabase.logPlannerFallback(
         page_id,
-        plan.fallbackReason,
-        plan.rawLLMOutput ?? null,
+        generated.fallbackReason,
+        generated.rawLLMOutput ?? null,
       );
     } catch {
       // Fallback logging failures are not user-facing. The primary writes
