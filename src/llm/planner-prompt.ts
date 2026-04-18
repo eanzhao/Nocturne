@@ -44,6 +44,27 @@ Schema (daily_brief_v1):
   ],
   "notes": [
     { "heading": "<=80, optional", "body": "<=1000" }
+  ],
+
+  // Multimodal fields (optional — DO NOT POPULATE YET, generator
+  // pipeline is not yet implemented; see GitHub issues #22–#27).
+  // Documented now so the schema is stable.
+  "visual_intents": [
+    {
+      "block_ref": "fig1",               // unique per brief
+      "kind": "image" | "video",
+      "prompt": "describe the subject",
+      "style_hint": "optional per-block style override",
+      "caption": "figure caption",
+      "credit": "credit line",
+      "alt": "accessibility alt text",
+      "aspect_ratio": "3:2" | "16:9" | etc,
+      "column_span": "narrow" | "medium" | "wide" | "full",
+      "placement_hint": "lead" | "inset" | "aside" | "break"
+    }
+  ],
+  "sidenotes": [
+    { "anchor_ref": "s1", "text": "sidenote body, ≤200 chars" }
   ]
 }
 
