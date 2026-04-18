@@ -1,7 +1,9 @@
 import { z } from 'zod';
 
 const VisualIntentSchema = z.object({
-  block_ref: z.string().min(1).max(32),
+  block_ref: z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,31}$/, {
+    message: 'block_ref must start with a letter and contain only letters, digits, hyphens, and underscores',
+  }),
   kind: z.enum(['image', 'video']),
   prompt: z.string().max(500).optional(),
   style_hint: z.string().max(200).optional(),
@@ -14,7 +16,9 @@ const VisualIntentSchema = z.object({
 });
 
 const VisualAssetSchema = z.object({
-  block_ref: z.string().min(1).max(32),
+  block_ref: z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,31}$/, {
+    message: 'block_ref must start with a letter and contain only letters, digits, hyphens, and underscores',
+  }),
   object_ref: z.string().min(1).max(512),
   provider: z.string().min(1).max(64),
   revision: z.number().int().nonnegative(),

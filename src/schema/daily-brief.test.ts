@@ -227,4 +227,44 @@ describe('DailyBriefBlock — multimodal extensions', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it('rejects block_ref with path-traversal sequence', () => {
+    const result = DailyBriefBlock.safeParse({
+      ...minimalValid,
+      visual_intents: [{ block_ref: '../foo', kind: 'image' }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects block_ref with shell-special characters', () => {
+    const result = DailyBriefBlock.safeParse({
+      ...minimalValid,
+      visual_intents: [{ block_ref: 'fig;1', kind: 'image' }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects empty block_ref', () => {
+    const result = DailyBriefBlock.safeParse({
+      ...minimalValid,
+      visual_intents: [{ block_ref: '', kind: 'image' }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects block_ref starting with digit', () => {
+    const result = DailyBriefBlock.safeParse({
+      ...minimalValid,
+      visual_intents: [{ block_ref: '1fig', kind: 'image' }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts alphanumeric-with-hyphens block_ref', () => {
+    const result = DailyBriefBlock.safeParse({
+      ...minimalValid,
+      visual_intents: [{ block_ref: 'fig-1_v2', kind: 'image' }],
+    });
+    expect(result.success).toBe(true);
+  });
 });
