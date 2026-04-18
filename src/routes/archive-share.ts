@@ -18,6 +18,7 @@ import { config } from "../config.ts";
 import * as supabase from "../index/supabase.ts";
 import { nyxidAuth } from "../middleware/auth.ts";
 import { deriveUserSlug } from "../utils/user-slug.ts";
+import { mapIndexError } from "./_errors.ts";
 
 /**
  * TTL policy: default 90 days, clamp to [1, 365].
@@ -68,6 +69,12 @@ function clampTtl(raw: number | undefined): number {
  */
 export function archiveShareRoutes(): Hono {
   const app = new Hono();
+
+  app.onError((err, c) => {
+    const mapped = mapIndexError(err, c);
+    if (mapped) return mapped;
+    throw err;
+  });
 
   app.use("/u/share", nyxidAuth);
   app.use("/u/share/*", nyxidAuth);

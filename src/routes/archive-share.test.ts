@@ -27,7 +27,7 @@ import {
 } from "jose";
 import { type Sql } from "postgres";
 import { config } from "../config.ts";
-import { __setClient__ } from "../index/supabase.ts";
+import { IndexError, __setClient__ } from "../index/supabase.ts";
 import {
   __clearJwksCacheForTesting,
   __setJwksFetcherForTesting,
@@ -398,5 +398,23 @@ describe("DELETE /u/share/:token_id", () => {
       { method: "DELETE" },
     );
     expect(res.status).toBe(401);
+  });
+});
+
+describe("IndexError mapping", () => {
+  test("createShareToken throwing IndexError(duplicate) → 500 duplicate_page_id", async () => {
+    const fake = installFakeSql();
+    fake.setResponder(() => {
+      throw new IndexError("duplicate", "simulated unique-violation");
+    });
+
+    const res = await mountApp().request("/u/share", {
+      method: "POST",
+      headers: { ...(await authHeaders()), "content-type": "application/json" },
+      body: "{}",
+    });
+
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "duplicate_page_id" });
   });
 });
