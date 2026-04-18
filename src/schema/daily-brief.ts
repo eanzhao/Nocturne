@@ -5,7 +5,13 @@ export const DailyBriefBlock = z.object({
   title: z.string().max(200),
   dek: z.string().max(280).optional(),
   date_label: z.string().max(80).optional(),
-  spec_id: z.enum(['executive-broadsheet', 'quiet-ledger', 'guji-classical']),
+  spec_id: z.enum([
+    'executive-broadsheet',
+    'quiet-ledger',
+    'guji-classical',
+    'front-page-daily',
+    'keynote-sheet',
+  ]),
   hero_quote: z.string().max(280).optional(),
   summary: z.string().max(1000).optional(),
   top_priorities: z

@@ -54,8 +54,13 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
+/*
+ * Outer body is a neutral desk surface so the sheet reads as a physical
+ * object on screen. In print `print.css` removes this background — the
+ * printer provides its own.
+ */
 body {
-  background: var(--bg);
+  background: #e5e5e5;
   color: var(--fg);
   font-family: var(--font-body);
   font-size: 16px;
@@ -64,7 +69,62 @@ body {
   font-variant-numeric: oldstyle-nums proportional-nums;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  padding: calc(var(--space-base) * 6);
+  margin: 0;
+  padding: calc(var(--space-base) * 6) 0;
+}
+
+/*
+ * `.page-sheet` is the "piece of paper". Every spec wraps its content in
+ * exactly one sheet. Width + min-height come from print dimensions; the
+ * body background (above) provides the desk contrast so the sheet looks
+ * like a physical object on screen.
+ *
+ * Orientation is driven by a body-level class set by the renderer from
+ * `spec.print.orientation`:
+ *   .orientation-portrait  → A4 portrait   (210mm × 297mm)
+ *   .orientation-landscape → A4 landscape  (297mm × 210mm)
+ *
+ * Inner padding = `spec.print.margin_mm` (inlined as `--sheet-margin`) so
+ * the on-screen text-box exactly matches what the printed page will have.
+ */
+.page-sheet {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 24px auto;
+  background: var(--bg);
+  color: var(--fg);
+  box-shadow:
+    0 2px 12px rgba(0, 0, 0, 0.12),
+    0 0 0 1px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+}
+
+.orientation-landscape .page-sheet {
+  width: 297mm;
+  min-height: 210mm;
+}
+
+.page-sheet-inner {
+  padding: var(--sheet-margin, 18mm);
+  min-height: 100%;
+  box-sizing: border-box;
+}
+
+/*
+ * Mobile: when viewport is narrower than an A4 sheet, scale the sheet
+ * down proportionally so the whole page is visible as a small document
+ * rather than overflowing. Keeps the "it is a printed page" reading
+ * frame; trade-off is that hit-targets scale too.
+ */
+@media (max-width: 840px) {
+  body { padding: 12px 0; }
+  .page-sheet {
+    transform: scale(calc((100vw - 24px) / 210mm));
+    transform-origin: top center;
+  }
+  .orientation-landscape .page-sheet {
+    transform: scale(calc((100vw - 24px) / 297mm));
+  }
 }
 
 .page {
@@ -346,8 +406,16 @@ blockquote, .hero-quote, .pull-quote {
  */
 
 /* ---------- Responsive collapse (shared — column → stack threshold) ---------- */
-
-@media (max-width: 900px) {
+/*
+ * The page-sheet scale() rule above already keeps A4 proportions on
+ * narrow viewports. We still collapse the 3-zone grid into one column
+ * so that at very small sheet scales (where 3 columns would turn into
+ * unreadable slivers) the content reflows. The break point is
+ * computed against the sheet's own content box, not the viewport, via
+ * @container queries.
+ */
+.layout { container-type: inline-size; }
+@container (max-width: 520px) {
   .layout-zones-3 {
     grid-template-columns: 1fr;
     grid-template-areas:
@@ -355,5 +423,4 @@ blockquote, .hero-quote, .pull-quote {
       "left"
       "right";
   }
-  body { padding: calc(var(--space-base) * 4); }
 }

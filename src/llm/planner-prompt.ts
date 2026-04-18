@@ -19,6 +19,8 @@ Rules:
   - "executive-broadsheet": Energetic editorial daily. Use for busy days with multiple priorities, data watch, and scheduled events. Default choice when in doubt.
   - "quiet-ledger": Slow contemplative day. Use when the brief is mostly narrative prose, few priorities, no urgency, and value comes from careful reading rather than scanning.
   - "guji-classical": Ritual or classical content. Use when the brief contains divination, poetry, historical quotation, Chinese philosophical content, or explicitly asks for reverential framing. Rare.
+  - "front-page-daily": Classic newspaper front-page. Use for weekly reviews, monthly retros, milestone announcements — any time ONE story dominates and everything else is supporting detail. First priority becomes a huge headline; remaining priorities appear as smaller items in the lower half. Limit top_priorities to exactly ONE when choosing this spec; put anything else into timeline/notes.
+  - "keynote-sheet": Single A4 landscape page, PPT-slide aesthetic. Use when the brief is essentially ONE point with 2-4 supporting beats, and you want a single self-contained page. Compress aggressively: top_priorities should be at most 3 short bullets; summary should fit one line; drop timeline/watchlist/notes unless strictly necessary.
 - Return JSON only.
 
 Schema (daily_brief_v1):
@@ -27,7 +29,7 @@ Schema (daily_brief_v1):
   "title": "string (<=200 chars)",
   "dek": "string (<=280 chars, optional)",
   "date_label": "string (<=80 chars, optional)",
-  "spec_id": "executive-broadsheet" | "quiet-ledger" | "guji-classical",
+  "spec_id": "executive-broadsheet" | "quiet-ledger" | "guji-classical" | "front-page-daily" | "keynote-sheet",
   "hero_quote": "string (<=280 chars, optional)",
   "summary": "string (<=1000 chars, optional)",
   "top_priorities": [

@@ -11,12 +11,14 @@ const specsDir = fileURLToPath(
 );
 
 describe('loadSpecs', () => {
-  test('loads all three v0 specs keyed by id', async () => {
+  test('loads all v0 specs keyed by id', async () => {
     const specs = await loadSpecs(specsDir);
-    expect(specs.size).toBe(3);
+    expect(specs.size).toBe(5);
     expect(specs.has('executive-broadsheet')).toBe(true);
     expect(specs.has('quiet-ledger')).toBe(true);
     expect(specs.has('guji-classical')).toBe(true);
+    expect(specs.has('front-page-daily')).toBe(true);
+    expect(specs.has('keynote-sheet')).toBe(true);
 
     const guji = specs.get('guji-classical');
     expect(guji?.writing_mode).toBe('vertical-rl');
@@ -28,6 +30,15 @@ describe('loadSpecs', () => {
 
     const broadsheet = specs.get('executive-broadsheet');
     expect(broadsheet?.severity_colors?.high).toBe('#b23d18');
+
+    const frontPage = specs.get('front-page-daily');
+    expect(frontPage?.hero_priority_treatment).toBe('dominant-lead');
+    expect(frontPage?.print.orientation).toBe('portrait');
+
+    const keynote = specs.get('keynote-sheet');
+    expect(keynote?.severity_style).toBe('none');
+    expect(keynote?.print.orientation).toBe('landscape');
+    expect(keynote?.hero_priority_treatment).toBe('single-only');
   });
 
   test('mutating a required field in a copy causes parse failure', async () => {

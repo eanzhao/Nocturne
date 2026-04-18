@@ -19,6 +19,7 @@ export const BLOCK_NAMES = [
   'timeline',
   'watchlist',
   'notes',
+  'masthead_banner',
 ] as const;
 
 export type BlockName = (typeof BLOCK_NAMES)[number];
@@ -66,11 +67,21 @@ export const AestheticSpecSchema = z.object({
     column_count_desktop: z.number().int().positive(),
     max_width: z.number().int().positive(),
   }),
-  hero_priority_treatment: z.enum(['first-as-hero', 'all-equal', 'single-only']),
+  hero_priority_treatment: z.enum([
+    'first-as-hero',
+    'all-equal',
+    'single-only',
+    'dominant-lead',
+  ]),
   block_zones: z.record(z.string(), z.array(z.enum(BLOCK_NAMES))),
   overflow_strategy: z.record(z.string(), overflowEntry),
   pull_quote_role: z.enum(['hero-center', 'coda', 'epigraph', 'none']),
-  severity_style: z.enum(['colored-dot', 'bracketed-text', 'traditional-mark']),
+  severity_style: z.enum([
+    'colored-dot',
+    'bracketed-text',
+    'traditional-mark',
+    'none',
+  ]),
   severity_colors: severityColors.optional(),
   severity_marks: severityMarks.optional(),
   mobile_fallback: z.enum(['horizontal-lr', 'vertical-rl']).optional(),
