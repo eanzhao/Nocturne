@@ -158,6 +158,37 @@ describe('renderPage — all specs', () => {
     expect(html).toContain('data-writing-mode="vertical-rl"');
     expect(html).toContain('writing-mode-vertical-rl');
   });
+
+  test('omitted date_label falls back to created_at calendar date', async () => {
+    const specs = await loadSpecs(SPECS_DIR);
+    const spec = specs.get('executive-broadsheet')!;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { date_label: _drop, ...without } = FIXTURE_BASE;
+    const brief = DailyBriefBlock.parse({
+      ...without,
+      spec_id: 'executive-broadsheet',
+    });
+    const html = renderPage(brief, spec, CTX);
+
+    // created_at is 2026-04-17T12:00:00Z → calendar date "2026-04-17".
+    expect(html).toContain('<div class="date-label">2026-04-17</div>');
+    // No stale value anywhere.
+    expect(html).not.toContain('2023');
+  });
+
+  test('planner-supplied date_label wins over the created_at fallback', async () => {
+    const specs = await loadSpecs(SPECS_DIR);
+    const spec = specs.get('executive-broadsheet')!;
+    const brief = DailyBriefBlock.parse({
+      ...FIXTURE_BASE,
+      spec_id: 'executive-broadsheet',
+      date_label: 'Spring 2025',
+    });
+    const html = renderPage(brief, spec, CTX);
+    expect(html).toContain('<div class="date-label">Spring 2025</div>');
+    // created_at date does NOT leak into the masthead when the brief had one.
+    expect(html).not.toContain('<div class="date-label">2026-04-17</div>');
+  });
 });
 
 describe('XSS safety', () => {

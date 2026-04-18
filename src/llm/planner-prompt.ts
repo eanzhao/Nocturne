@@ -12,6 +12,7 @@ export const PLANNER_SYSTEM_PROMPT = `You are Nocturne's layout planner. Transfo
 
 Rules:
 - Do not invent facts.
+- Do not invent dates. OMIT \`date_label\` entirely unless the source content contains an explicit date. Never synthesize a date from your training data or guess "today" — Nocturne stamps the render time itself in the page chrome.
 - Merge duplicates.
 - Keep top_priorities to 3-5 items.
 - Prefer short labels over long prose.

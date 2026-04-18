@@ -217,7 +217,9 @@ export function renderPage(
   const hasMasthead = zoneEntries.some(([, blocks]) =>
     blocks.includes('masthead_banner'),
   );
-  const heroHtml = hasMasthead ? '' : (<Hero brief={brief} />).toString();
+  const heroHtml = hasMasthead
+    ? ''
+    : (<Hero brief={brief} createdAt={ctx.created_at} />).toString();
 
   const zonesHtml = zoneEntries
     .map(([name, blocks]) =>
