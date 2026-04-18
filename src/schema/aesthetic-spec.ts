@@ -85,6 +85,7 @@ export const AestheticSpecSchema = z.object({
   severity_colors: severityColors.optional(),
   severity_marks: severityMarks.optional(),
   mobile_fallback: z.enum(['horizontal-lr', 'vertical-rl']).optional(),
+  visual_style_hint: z.string().min(1),
   print: z.object({
     paper: z.union([paperValue, z.array(paperValue).nonempty()]),
     orientation: z.enum(['portrait', 'landscape']),

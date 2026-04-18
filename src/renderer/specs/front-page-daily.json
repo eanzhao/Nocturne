@@ -36,5 +36,6 @@
   },
   "pull_quote_role": "epigraph",
   "severity_style": "bracketed-text",
+  "visual_style_hint": "news photojournalism, documentary realism, high contrast, single dominant subject",
   "print": { "paper": "A4", "orientation": "portrait", "margin_mm": 16 }
 }

@@ -32,5 +32,6 @@
   },
   "pull_quote_role": "none",
   "severity_style": "none",
+  "visual_style_hint": "modern flat illustration, clean geometric shapes, bright accent colors",
   "print": { "paper": "A4", "orientation": "landscape", "margin_mm": 20 }
 }
