@@ -20,6 +20,16 @@ describe("parseArgs", () => {
     expect(parseArgs(["-h"])).toEqual({ help: true });
   });
 
+  it("recognizes the status subcommand", () => {
+    expect(parseArgs(["status"])).toEqual({ subcommand: "status" });
+  });
+
+  it("only the FIRST positional is treated as a subcommand", () => {
+    // An unknown second positional still errors — we don't silently swallow
+    // it because a subcommand slot exists.
+    expect(() => parseArgs(["status", "format"])).toThrow(ArgsError);
+  });
+
   it("throws ArgsError when --in is missing a value", () => {
     expect(() => parseArgs(["--in"])).toThrow(ArgsError);
   });
@@ -35,6 +45,7 @@ describe("parseArgs", () => {
 
 let server: ReturnType<typeof Bun.serve>;
 let outDir: string;
+let homeDir: string;
 
 const FIXTURE_BRIEF = {
   content_type: "daily_brief_v1",
@@ -49,6 +60,10 @@ const FIXTURE_BRIEF = {
 
 beforeAll(() => {
   outDir = mkdtempSync(join(tmpdir(), "nocturne-cli-"));
+  // Force HOME to an empty tmp dir so subprocess CLI invocations do NOT
+  // accidentally read the user's real ~/.nyxid tokens and try to call the
+  // real NyxID server.
+  homeDir = mkdtempSync(join(tmpdir(), "nocturne-cli-home-"));
   server = Bun.serve({
     port: 0,
     fetch: async (req) => {
@@ -67,6 +82,7 @@ beforeAll(() => {
 afterAll(() => {
   server.stop(true);
   rmSync(outDir, { recursive: true, force: true });
+  rmSync(homeDir, { recursive: true, force: true });
 });
 
 describe("CLI: bun run src/cli/format.ts", () => {
@@ -75,6 +91,7 @@ describe("CLI: bun run src/cli/format.ts", () => {
       cmd: ["bun", "run", "src/cli/format.ts", "--out-dir", outDir],
       env: {
         ...process.env,
+        HOME: homeDir,
         NOCTURNE_OPENAI_API_KEY: "sk-local-test",
         NOCTURNE_OPENAI_BASE_URL: `http://127.0.0.1:${server.port}/v1`,
         NOCTURNE_OPENAI_MODEL: "gpt-fixture",
@@ -102,10 +119,14 @@ describe("CLI: bun run src/cli/format.ts", () => {
     expect(entries.length).toBe(1);
   }, 15_000);
 
-  it("fails fast with a clear message when NOCTURNE_OPENAI_API_KEY is missing", async () => {
+  it("fails with a helpful message when neither NyxID nor OpenAI is configured", async () => {
     const proc = Bun.spawn({
       cmd: ["bun", "run", "src/cli/format.ts"],
-      env: { ...process.env, NOCTURNE_OPENAI_API_KEY: "" },
+      env: {
+        ...process.env,
+        HOME: homeDir,
+        NOCTURNE_OPENAI_API_KEY: "",
+      },
       stdin: new Response("x").body ?? undefined,
       stdout: "pipe",
       stderr: "pipe",
@@ -114,5 +135,27 @@ describe("CLI: bun run src/cli/format.ts", () => {
     const code = await proc.exited;
     expect(code).not.toBe(0);
     expect(err).toContain("NOCTURNE_OPENAI_API_KEY");
+    expect(err).toContain("nyxid login");
+  }, 10_000);
+
+  it("`status` subcommand prints auth state without hitting the planner", async () => {
+    const proc = Bun.spawn({
+      cmd: ["bun", "run", "src/cli/format.ts", "status"],
+      env: {
+        ...process.env,
+        HOME: homeDir,
+        NOCTURNE_OPENAI_API_KEY: "",
+      },
+      // No stdin — status MUST NOT try to read the planner input.
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const out = await new Response(proc.stdout).text();
+    const code = await proc.exited;
+    expect(code).toBe(0);
+    expect(out).toContain("NyxID");
+    expect(out).toContain("not logged in");
+    expect(out).toContain("OpenAI API key");
+    expect(out).toContain("not set");
   }, 10_000);
 });
