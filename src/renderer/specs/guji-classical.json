@@ -24,7 +24,7 @@
   },
   "hero_priority_treatment": "first-as-hero",
   "block_zones": {
-    "main": ["hero_quote", "top_priorities"],
+    "main": ["top_priorities"],
     "aside": ["timeline", "watchlist", "notes"],
     "epigraph": ["pull_quote"]
   },

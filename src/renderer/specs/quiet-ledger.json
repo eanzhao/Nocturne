@@ -24,7 +24,7 @@
   },
   "hero_priority_treatment": "all-equal",
   "block_zones": {
-    "single": ["hero_quote", "summary", "top_priorities", "timeline", "watchlist", "notes", "pull_quote"]
+    "single": ["summary", "top_priorities", "timeline", "watchlist", "notes", "pull_quote"]
   },
   "overflow_strategy": {
     "top_priorities": { "max": 5, "on_overflow": "truncate-with-count" },

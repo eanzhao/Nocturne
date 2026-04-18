@@ -30,8 +30,6 @@
  *   IndexError{timeout|…}           → 500 index_write_failed
  */
 import { createHmac } from "node:crypto";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import type { Context } from "hono";
 import { Hono } from "hono";
@@ -48,8 +46,16 @@ import {
 } from "../llm/gateway.ts";
 import {
   type AestheticSpec,
-  loadSpecs,
+  AestheticSpecSchema,
 } from "../schema/aesthetic-spec.ts";
+
+// Import the three v0 specs directly so `bun build --compile` embeds them
+// into the single-binary deploy artifact. Previously these were loaded via
+// fs.readdir at runtime, which fails when the binary's __dirname points
+// inside the compiled archive rather than a real directory on disk.
+import executiveBroadsheetSpec from "../renderer/specs/executive-broadsheet.json" with { type: "json" };
+import quietLedgerSpec from "../renderer/specs/quiet-ledger.json" with { type: "json" };
+import gujiClassicalSpec from "../renderer/specs/guji-classical.json" with { type: "json" };
 import { renderPage } from "../renderer/render-page.tsx";
 import * as chrono from "../storage/chrono.ts";
 import * as supabase from "../index/supabase.ts";
@@ -77,20 +83,31 @@ type FormatRequestBody = z.infer<typeof FormatRequest>;
 // ---------------------------------------------------------------------------
 // Spec cache.
 //
-// `loadSpecs` reads JSON files off disk and Zod-validates them. We do this
-// once per process, at module load, so the hot path has zero filesystem
-// traffic. The cache is keyed by spec id; the `brief.spec_id` enum from
-// `src/schema/daily-brief.ts` guarantees every valid brief maps into it.
+// v0 specs are imported at the top of this file via JSON import attributes,
+// so `bun build --compile` embeds them. We Zod-validate each once at module
+// load and stash in a Map keyed by spec id. Same shape as the legacy
+// `loadSpecs()` return, but zero runtime filesystem traffic.
 
-const __filename = fileURLToPath(import.meta.url);
-// src/routes/format.ts → src/renderer/specs
-const SPECS_DIR = join(__filename, "../../renderer/specs");
+const V0_RAW_SPECS: unknown[] = [
+  executiveBroadsheetSpec,
+  quietLedgerSpec,
+  gujiClassicalSpec,
+];
+
+function buildV0Specs(): Map<string, AestheticSpec> {
+  const map = new Map<string, AestheticSpec>();
+  for (const raw of V0_RAW_SPECS) {
+    const parsed = AestheticSpecSchema.parse(raw);
+    map.set(parsed.id, parsed);
+  }
+  return map;
+}
 
 let _specsPromise: Promise<Map<string, AestheticSpec>> | null = null;
 
 function getSpecs(): Promise<Map<string, AestheticSpec>> {
   if (_specsPromise === null) {
-    _specsPromise = loadSpecs(SPECS_DIR);
+    _specsPromise = Promise.resolve(buildV0Specs());
   }
   return _specsPromise;
 }
@@ -105,7 +122,7 @@ export function __resetSpecsForTesting(
 // ---------------------------------------------------------------------------
 // Owner slug derivation.
 //
-// The chrome zone optionally links to `/~{owner_slug}` — the user's archive.
+// The chrome zone optionally links to `/u/{owner_slug}` — the user's archive.
 // We don't want to leak the raw NyxID user UUID into HTML, so we HMAC it with
 // the service secret and truncate to 16 hex chars (~64 bits, plenty for a
 // non-enumeration identifier). Deterministic per user: two briefs from the

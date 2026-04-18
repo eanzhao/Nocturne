@@ -16,7 +16,8 @@ import { sanitizeText } from '../../utils/sanitize.ts';
  *   - `created_at` — ISO8601, rendered as a human date.
  *   - `model` — LLM model identifier used to author the brief.
  *   - `owner_slug` — optional; when present, the "All your Nocturnes" link
- *     goes to `/~{owner_slug}`; otherwise the link is suppressed.
+ *     goes to `/u/{owner_slug}` (matches the mounted archive route in app.ts);
+ *     otherwise the link is suppressed.
  */
 export interface ChromeCtx {
   user_id: string;
@@ -39,7 +40,8 @@ export interface ChromeCtx {
  *   - `.chrome-zone` wraps the group. `print.css` keys off this class.
  *   - The Export-as-PDF button has `data-action="export-pdf"` and a sibling
  *     popover with `data-nocturne-popover="export-pdf"` that starts hidden.
- *   - Rate buttons post to `/v/{slug}/rate` with `{rating: "up"|"down"}`.
+ *   - Rate buttons post to `/v/{slug}/rate?score=good|bad`. The UI shows
+ *     "up"/"down" on `data-rating`; the script maps to the backend enum.
  *   - Copy-permalink button uses `navigator.clipboard`.
  *   - A separate `.provenance-strip` (outside .chrome-zone) is archival and
  *     survives printing per print.css.
@@ -50,7 +52,7 @@ export interface ChromeCtx {
 export function Chrome({ ctx }: { ctx: ChromeCtx }) {
   const ownerLink =
     ctx.owner_slug !== undefined && ctx.owner_slug.length > 0
-      ? `/~${encodeURIComponent(ctx.owner_slug)}`
+      ? `/u/${encodeURIComponent(ctx.owner_slug)}`
       : null;
 
   return (
@@ -202,12 +204,13 @@ export const CHROME_SCRIPT = String.raw`
     btn.addEventListener('click', function () {
       var rating = btn.getAttribute('data-rating');
       if (!pageId || !rating) return;
+      // Map UI "up"/"down" to backend contract "good"/"bad" per src/routes/rate.ts.
+      var score = rating === 'up' ? 'good' : rating === 'down' ? 'bad' : null;
+      if (!score) return;
       var prev = btn.getAttribute('aria-pressed');
       btn.setAttribute('aria-pressed', 'true');
-      fetch('/v/' + encodeURIComponent(pageId) + '/rate', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ rating: rating })
+      fetch('/v/' + encodeURIComponent(pageId) + '/rate?score=' + score, {
+        method: 'POST'
       }).catch(function () {
         btn.setAttribute('aria-pressed', prev || 'false');
         btn.setAttribute('title', 'Rate failed — try again');

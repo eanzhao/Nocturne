@@ -1,9 +1,12 @@
 /** @jsxImportSource hono/jsx */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import { raw } from 'hono/html';
+
+// Import CSS as text at compile time so `bun build --compile` embeds them
+// into the single-binary deploy artifact. Previously these were read via
+// `fs.readFileSync(__dirname/base.css)` which fails at runtime in a compiled
+// binary (import.meta.url points inside the binary, not to a real directory).
+import BASE_CSS from './base.css' with { type: 'text' };
+import PRINT_CSS from './print.css' with { type: 'text' };
 
 import type { AestheticSpec } from '../schema/aesthetic-spec.ts';
 import type { DailyBrief } from '../schema/daily-brief.ts';
@@ -79,16 +82,8 @@ const PALETTE_KEYS = ['bg', 'fg', 'muted', 'accent', 'hairline'] as const;
 /** Keys we read from `spec.fonts` to mint CSS vars. */
 const FONT_KEYS = ['headline', 'body', 'label', 'mono'] as const;
 
-/**
- * Load base.css + print.css from disk, once per process. These files are
- * authored-as-assets (not JS), inlined into every page. Reading lazily
- * via `readFileSync` keeps the test harness honest — we catch a missing
- * file before render, not at first HTTP hit.
- */
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const BASE_CSS = readFileSync(join(__dirname, 'base.css'), 'utf8');
-const PRINT_CSS = readFileSync(join(__dirname, 'print.css'), 'utf8');
+// BASE_CSS + PRINT_CSS are imported as text at the top of this file (see
+// `with { type: "text" }` imports) — that embeds them at compile time.
 
 /**
  * Build the `:root` CSS variable block from the active spec.

@@ -26,7 +26,7 @@
   "block_zones": {
     "left":   ["top_priorities"],
     "right":  ["timeline", "watchlist", "notes"],
-    "center": ["hero_quote", "pull_quote"]
+    "center": ["hero_quote"]
   },
   "overflow_strategy": {
     "top_priorities": { "max": 5, "on_overflow": "truncate-with-count" },

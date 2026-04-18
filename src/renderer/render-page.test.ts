@@ -368,7 +368,7 @@ describe('chrome + provenance', () => {
     const spec = specs.get('executive-broadsheet')!;
     const brief = buildBrief('executive-broadsheet');
     const html = renderPage(brief, spec, { ...CTX, owner_slug: 'eanz' });
-    expect(html).toContain('href="/~eanz"');
+    expect(html).toContain('href="/u/eanz"');
     expect(html).toContain('All your Nocturnes');
   });
 
