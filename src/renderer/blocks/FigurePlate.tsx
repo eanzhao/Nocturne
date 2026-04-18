@@ -51,10 +51,10 @@ export function FigurePlate({
       data-column-span={spanAttr}
       data-placement={placementAttr}
     >
-      {ok && intent.kind === 'image' ? (
+      {ok && asset!.mime.startsWith('image/') ? (
         <img src={mediaUrl} alt={alt} loading="lazy" />
       ) : null}
-      {ok && intent.kind === 'video' ? (
+      {ok && asset!.mime.startsWith('video/') ? (
         <video
           src={mediaUrl}
           poster={posterUrl}
@@ -63,6 +63,11 @@ export function FigurePlate({
           muted
           playsinline
         />
+      ) : null}
+      {ok && !asset!.mime.startsWith('image/') && !asset!.mime.startsWith('video/') ? (
+        <div class="figure-placeholder" data-reason="unsupported-mime">
+          <div class="placeholder-shape" data-kind={intent.kind} />
+        </div>
       ) : null}
       {!ok ? (
         <div class="figure-placeholder" aria-label="figure not yet generated">

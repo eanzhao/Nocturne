@@ -99,6 +99,37 @@ describe('FigurePlate', () => {
     expect(html).toContain('data-column-span="wide"');
   });
 
+  it('renders video when intent.kind=image but asset.mime=video/*', () => {
+    const brief = makeBrief({
+      visual_intents: [intent], // intent.kind='image'
+      visual_assets: [{ ...okAsset, mime: 'video/mp4' }],
+    });
+    const html = String(FigurePlate({ brief, blockRef: 'fig1' }));
+    expect(html).toContain('<video');
+    expect(html).not.toContain('<img');
+  });
+
+  it('renders img when intent.kind=video but asset.mime=image/*', () => {
+    const brief = makeBrief({
+      visual_intents: [{ ...intent, kind: 'video' }],
+      visual_assets: [{ ...okAsset, mime: 'image/png' }],
+    });
+    const html = String(FigurePlate({ brief, blockRef: 'fig1' }));
+    expect(html).toContain('<img');
+    expect(html).not.toContain('<video');
+  });
+
+  it('renders unsupported-mime placeholder when asset mime is neither image/* nor video/*', () => {
+    const brief = makeBrief({
+      visual_intents: [intent],
+      visual_assets: [{ ...okAsset, mime: 'application/pdf' }],
+    });
+    const html = String(FigurePlate({ brief, blockRef: 'fig1' }));
+    expect(html).toContain('data-reason="unsupported-mime"');
+    expect(html).not.toContain('<img');
+    expect(html).not.toContain('<video');
+  });
+
   it('escapes caption and credit', () => {
     const brief = makeBrief({
       visual_intents: [{ ...intent, caption: '<x>', credit: '<y>' }],
