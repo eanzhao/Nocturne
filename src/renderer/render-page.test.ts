@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { AestheticSpecSchema, loadSpecs } from '../schema/aesthetic-spec.ts';
 import { DailyBriefBlock, type DailyBrief } from '../schema/daily-brief.ts';
 import type { AestheticSpec } from '../schema/aesthetic-spec.ts';
-import { renderPage, type RenderCtx } from './render-page.tsx';
+import { renderPage, BLOCK_COMPONENTS, type RenderCtx } from './render-page.tsx';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SPECS_DIR = join(__dirname, 'specs');
@@ -572,5 +572,71 @@ describe('keynote-sheet specifics', () => {
       CTX,
     );
     expect(html).toMatch(/<body[^>]*class="[^"]*\borientation-landscape\b/);
+  });
+});
+
+describe('BLOCK_COMPONENTS — figure_plate ctx.page_id threading', () => {
+  test('figure_plate uses ctx.page_id (not placeholder) in media URL', async () => {
+    const specs = await loadSpecs(SPECS_DIR);
+    const spec = specs.get('executive-broadsheet')!;
+    const brief = DailyBriefBlock.parse({
+      content_type: 'daily_brief_v1',
+      title: 'Media test',
+      spec_id: 'executive-broadsheet',
+      visual_intents: [{ block_ref: 'fig1', kind: 'image' }],
+      visual_assets: [
+        {
+          block_ref: 'fig1',
+          object_ref: 'nocturne-media/u1/p1/fig1.png',
+          provider: 'flux-schnell',
+          revision: 1,
+          status: 'ok',
+          mime: 'image/png',
+        },
+      ],
+    });
+
+    // Call BLOCK_COMPONENTS.figure_plate directly so we don't need a spec
+    // that lists figure_plate in its block_zones.
+    const html = String(BLOCK_COMPONENTS.figure_plate({ brief, spec, ctx: CTX }));
+    expect(html).toContain(`src="/m/${CTX.page_id}/fig1"`);
+    expect(html).not.toContain('page-id-placeholder');
+  });
+
+  test('figure_strip uses ctx.page_id (not placeholder) in media URLs', async () => {
+    const specs = await loadSpecs(SPECS_DIR);
+    const spec = specs.get('executive-broadsheet')!;
+    const brief = DailyBriefBlock.parse({
+      content_type: 'daily_brief_v1',
+      title: 'Strip test',
+      spec_id: 'executive-broadsheet',
+      visual_intents: [
+        { block_ref: 'fig1', kind: 'image' },
+        { block_ref: 'fig2', kind: 'image' },
+      ],
+      visual_assets: [
+        {
+          block_ref: 'fig1',
+          object_ref: 'nocturne-media/u1/p1/fig1.png',
+          provider: 'flux-schnell',
+          revision: 1,
+          status: 'ok',
+          mime: 'image/png',
+        },
+        {
+          block_ref: 'fig2',
+          object_ref: 'nocturne-media/u1/p1/fig2.png',
+          provider: 'flux-schnell',
+          revision: 1,
+          status: 'ok',
+          mime: 'image/png',
+        },
+      ],
+    });
+
+    const html = String(BLOCK_COMPONENTS.figure_strip({ brief, spec, ctx: CTX }));
+    expect(html).toContain(`src="/m/${CTX.page_id}/fig1"`);
+    expect(html).toContain(`src="/m/${CTX.page_id}/fig2"`);
+    expect(html).not.toContain('page-id-placeholder');
   });
 });
