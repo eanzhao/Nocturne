@@ -26,7 +26,7 @@ import { config } from "../config.ts";
 import * as supabase from "../index/supabase.ts";
 import { optionalNyxidAuth } from "../middleware/auth.ts";
 import { deriveUserSlug } from "../utils/user-slug.ts";
-import { mapIndexError } from "./_errors.ts";
+import { archiveErrorHandler } from "./_errors.ts";
 
 /**
  * Minimal HTML escaper for the unstyled archive table.
@@ -134,11 +134,7 @@ const SLUG_RE = /^[0-9a-f]{16}$/;
 export function archiveRoutes(): Hono {
   const app = new Hono();
 
-  app.onError((err, c) => {
-    const mapped = mapIndexError(err, c);
-    if (mapped) return mapped;
-    throw err;
-  });
+  app.onError(archiveErrorHandler());
 
   // Token-bearing branch. If no token is present we `next()` to the auth
   // handler below.
