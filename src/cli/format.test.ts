@@ -39,6 +39,34 @@ describe("parseArgs", () => {
     expect(() => parseArgs(["status", "foo"])).toThrow(ArgsError);
   });
 
+  it("recognizes the routes subcommand", () => {
+    expect(parseArgs(["routes"])).toEqual({ subcommand: { kind: "routes" } });
+  });
+
+  it("routes rejects trailing args", () => {
+    expect(() => parseArgs(["routes", "foo"])).toThrow(ArgsError);
+  });
+
+  it("models without a flag defaults to gateway (route=undefined)", () => {
+    expect(parseArgs(["models"])).toEqual({
+      subcommand: { kind: "models", route: undefined },
+    });
+  });
+
+  it("models --route <slug> carries the slug through", () => {
+    expect(parseArgs(["models", "--route", "chrono-llm"])).toEqual({
+      subcommand: { kind: "models", route: "chrono-llm" },
+    });
+  });
+
+  it("models --route without a value throws", () => {
+    expect(() => parseArgs(["models", "--route"])).toThrow(ArgsError);
+  });
+
+  it("models rejects unknown flags", () => {
+    expect(() => parseArgs(["models", "--bogus"])).toThrow(ArgsError);
+  });
+
   it("config list", () => {
     expect(parseArgs(["config", "list"])).toEqual({
       subcommand: { kind: "config-list" },

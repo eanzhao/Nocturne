@@ -43,6 +43,7 @@ import {
   writeConfigFile,
 } from "./config-file.ts";
 import {
+  listRouteModels,
   listUserServices,
   NyxIDStatusError,
   normalizeLlmRoute,
@@ -55,6 +56,8 @@ import {
 export type Subcommand =
   | { kind: "format" }
   | { kind: "status" }
+  | { kind: "routes" }
+  | { kind: "models"; route: string | undefined }
   | { kind: "config-list" }
   | { kind: "config-get"; key: ConfigKey }
   | { kind: "config-set"; key: ConfigKey; value: string }
@@ -102,6 +105,31 @@ export function parseArgs(argv: string[]): Args {
       throw new ArgsError(`status: unexpected extra arg "${argv[1]}"`);
     }
     return { subcommand: { kind: "status" } };
+  }
+
+  if (argv[0] === "routes") {
+    if (argv.length > 1) {
+      throw new ArgsError(`routes: unexpected extra arg "${argv[1]}"`);
+    }
+    return { subcommand: { kind: "routes" } };
+  }
+
+  if (argv[0] === "models") {
+    let route: string | undefined;
+    for (let i = 1; i < argv.length; i++) {
+      const v = argv[i];
+      if (v === "--route") {
+        const next = argv[i + 1];
+        if (next === undefined || next.startsWith("-")) {
+          throw new ArgsError(`--route requires a slug or path`);
+        }
+        route = next;
+        i++;
+      } else {
+        throw new ArgsError(`models: unknown arg "${v}"`);
+      }
+    }
+    return { subcommand: { kind: "models", route } };
   }
 
   if (argv[0] === "config") {
@@ -182,6 +210,8 @@ Usage:
   echo "..." | nocturne-format
   nocturne-format --in content.md [--out ./page.html | --out-dir ./pages]
   nocturne-format status                    # auth / provider state
+  nocturne-format routes                    # list picks for llm-route
+  nocturne-format models [--route <slug>]   # list models (gateway or a proxy route)
   nocturne-format config list               # effective config + source
   nocturne-format config set <key> <value>  # persist to config file
   nocturne-format config get <key>
@@ -496,6 +526,120 @@ async function runStatus(
   process.stdout.write(`${lines.join("\n")}\n`);
 }
 
+async function runRoutes(tokens: NyxIDTokens | null): Promise<void> {
+  if (tokens === null) {
+    fail(
+      "not logged in. Run `nyxid login` first, then the gateway + your proxy-service routes will appear here.",
+    );
+  }
+
+  const lines: string[] = [];
+  lines.push("Available routes — set with `nocturne-format config set llm-route <slug>`:");
+  lines.push("");
+  lines.push(padSlug("gateway") + "  NyxID LLM Gateway (default, prefix-routed)");
+
+  try {
+    const services = await listUserServices(tokens);
+    // Custom first, catalog second — same order as `status`, so the
+    // slug the user is most likely typing sits nearest the top.
+    const ordered = [
+      ...services.filter((s) => !s.fromCatalog),
+      ...services.filter((s) => s.fromCatalog),
+    ];
+    if (ordered.length === 0) {
+      lines.push("");
+      lines.push("(no user services registered — add one on NyxID's /keys page)");
+    } else {
+      for (const s of ordered) {
+        const trailer =
+          s.name && s.name !== s.slug
+            ? `${s.name}${s.active ? "" : " (INACTIVE)"}`
+            : s.active
+              ? ""
+              : "(INACTIVE)";
+        lines.push(`${padSlug(s.slug)}  ${trailer}`.trimEnd());
+      }
+    }
+  } catch (err) {
+    if (err instanceof NyxIDStatusError) {
+      lines.push(`  (error listing user services: ${err.hint} — ${err.message})`);
+    } else {
+      throw err;
+    }
+  }
+
+  process.stdout.write(`${lines.join("\n")}\n`);
+}
+
+function padSlug(s: string): string {
+  const w = 36;
+  return s.length >= w ? s : s + " ".repeat(w - s.length);
+}
+
+async function runModels(
+  tokens: NyxIDTokens | null,
+  configuredRoute: string | undefined,
+  flagRoute: string | undefined,
+): Promise<void> {
+  if (tokens === null) {
+    fail("not logged in. Run `nyxid login` first.");
+  }
+
+  // Flag beats config; config beats gateway default. `gateway` (or
+  // anything that normalizes to null) means "use the LLM gateway
+  // supported_models list, don't probe a proxy".
+  const chosen = flagRoute ?? configuredRoute;
+  const route = normalizeLlmRoute(chosen);
+  const isGateway = route === null;
+
+  const lines: string[] = [];
+  if (isGateway) {
+    lines.push("Models: NyxID LLM Gateway");
+    lines.push("");
+    try {
+      const gw = await resolveNyxIDGateway(tokens);
+      if (gw.supportedModels.length === 0) {
+        lines.push("(gateway reported no supported_models list)");
+      } else {
+        lines.push(
+          "The gateway routes by prefix — any model whose name starts with one of these is accepted:",
+        );
+        lines.push("");
+        for (const m of gw.supportedModels) lines.push(`  ${m}`);
+      }
+      lines.push("");
+      lines.push(`Ready providers: ${gw.readyProviders.join(", ") || "(none)"}`);
+    } catch (err) {
+      if (err instanceof NyxIDStatusError) {
+        fail(`gateway status: ${err.hint} — ${err.message}`);
+      }
+      throw err;
+    }
+  } else {
+    const label = chosen ?? route;
+    lines.push(`Models: ${label}`);
+    lines.push(`  (fetched from ${route}/models)`);
+    lines.push("");
+    try {
+      const models = await listRouteModels(tokens, route);
+      if (models.length === 0) {
+        lines.push("(upstream returned an empty model list)");
+      } else {
+        for (const m of models) lines.push(`  ${m}`);
+      }
+    } catch (err) {
+      if (err instanceof NyxIDStatusError) {
+        fail(
+          `${err.hint === "malformed" ? "not OpenAI-compatible" : err.hint}: ${err.message}`,
+        );
+      }
+      throw err;
+    }
+  }
+
+  process.stdout.write(`${lines.join("\n")}\n`);
+}
+
 function formatUserServiceRow(s: NyxIDUserService): string {
   const tags: string[] = [];
   if (!s.active) tags.push("inactive");
@@ -577,6 +721,16 @@ async function main(): Promise<void> {
       llmRoute: cfg.llmRoute,
       llmRouteSource: cfg.sources.llm_route,
     });
+    return;
+  }
+
+  if (args.subcommand.kind === "routes") {
+    await runRoutes(tokens);
+    return;
+  }
+
+  if (args.subcommand.kind === "models") {
+    await runModels(tokens, cfg.llmRoute, args.subcommand.route);
     return;
   }
 

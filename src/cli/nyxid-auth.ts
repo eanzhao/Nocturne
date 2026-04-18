@@ -70,6 +70,13 @@ const LlmStatusResponse = z.object({
       status: z.string(),
     }),
   ),
+  /*
+   * Gateway-supported model prefix globs (`gpt-*`, `claude-*`, …). The
+   * LLM Gateway routes by matching a request's model name against these
+   * prefixes; we expose them via `models --route gateway` so users can
+   * see what the gateway will happily forward.
+   */
+  supported_models: z.array(z.string()).optional(),
 });
 
 export type LlmStatus = z.infer<typeof LlmStatusResponse>;
@@ -107,7 +114,11 @@ export type FetchLike = (
 export async function resolveNyxIDGateway(
   tokens: NyxIDTokens,
   opts: { fetchImpl?: FetchLike; timeoutMs?: number } = {},
-): Promise<{ gatewayUrl: string; readyProviders: string[] }> {
+): Promise<{
+  gatewayUrl: string;
+  readyProviders: string[];
+  supportedModels: string[];
+}> {
   const fetchImpl = opts.fetchImpl ?? fetch;
   const timeoutMs = opts.timeoutMs ?? 5_000;
   const url = `${tokens.baseUrl}/api/v1/llm/status`;
@@ -173,7 +184,116 @@ export async function resolveNyxIDGateway(
   return {
     gatewayUrl: parsed.data.gateway_url.replace(/\/+$/, ""),
     readyProviders: ready,
+    supportedModels: parsed.data.supported_models ?? [],
   };
+}
+
+/**
+ * List OpenAI-style models exposed by a specific proxy route. Hits
+ * `{nyxid}/{route}/models` — which works for any OpenAI-compatible
+ * upstream (Ollama, MLX-server, SiliconFlow, chrono-llm, …). Returns
+ * a sorted list of model IDs.
+ *
+ * Non-OpenAI upstreams (auth:token_exchange services like Lark Bot,
+ * or services whose target doesn't expose /models) will either return
+ * 404 or a non-OpenAI envelope — we surface both as a `malformed`
+ * `NyxIDStatusError` so the caller can print a friendly "not
+ * OpenAI-compatible" hint.
+ *
+ * `route` must be a normalized absolute path (as returned by
+ * `normalizeLlmRoute`), e.g. `/api/v1/proxy/s/chrono-llm`.
+ */
+export async function listRouteModels(
+  tokens: NyxIDTokens,
+  route: string,
+  opts: { fetchImpl?: FetchLike; timeoutMs?: number } = {},
+): Promise<string[]> {
+  const fetchImpl = opts.fetchImpl ?? fetch;
+  const timeoutMs = opts.timeoutMs ?? 10_000;
+  const url = `${tokens.baseUrl}${route.replace(/\/+$/, "")}/models`;
+
+  let res: Response;
+  try {
+    res = await fetchImpl(url, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${tokens.accessToken}` },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (err) {
+    throw new NyxIDStatusError(
+      "network",
+      `${url} fetch failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  if (res.status === 401) {
+    throw new NyxIDStatusError(
+      "unauthorized",
+      "NyxID rejected the access token (401). Run `nyxid login`.",
+      401,
+    );
+  }
+  if (res.status === 404) {
+    throw new NyxIDStatusError(
+      "malformed",
+      `Upstream for ${route} did not expose /models (404). Service may not be OpenAI-compatible.`,
+      404,
+    );
+  }
+  if (!res.ok) {
+    throw new NyxIDStatusError(
+      "network",
+      `${url} returned HTTP ${res.status}`,
+      res.status,
+    );
+  }
+
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch (err) {
+    throw new NyxIDStatusError(
+      "malformed",
+      `${url} returned non-JSON: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  // OpenAI contract: `{ object: "list", data: [{ id, ... }, ...] }`.
+  // Some self-hosted servers (Ollama native) return `{ models: [...] }`;
+  // we accept either. If neither shape matches, throw malformed.
+  const openaiShape = z.object({
+    data: z.array(z.object({ id: z.string() })),
+  });
+  const ollamaShape = z.object({
+    models: z.array(
+      z.union([
+        z.string(),
+        z.object({ name: z.string() }),
+        z.object({ model: z.string() }),
+      ]),
+    ),
+  });
+
+  const asOpenai = openaiShape.safeParse(body);
+  if (asOpenai.success) {
+    return asOpenai.data.data.map((m) => m.id).sort();
+  }
+  const asOllama = ollamaShape.safeParse(body);
+  if (asOllama.success) {
+    return asOllama.data.models
+      .map((m) =>
+        typeof m === "string"
+          ? m
+          : "name" in m
+            ? m.name
+            : m.model,
+      )
+      .sort();
+  }
+  throw new NyxIDStatusError(
+    "malformed",
+    `${url} envelope did not match OpenAI /models or Ollama /api/tags shape`,
+  );
 }
 
 /*
