@@ -18,6 +18,8 @@ import {
 import executiveBroadsheetSpec from "../renderer/specs/executive-broadsheet.json" with { type: "json" };
 import quietLedgerSpec from "../renderer/specs/quiet-ledger.json" with { type: "json" };
 import gujiClassicalSpec from "../renderer/specs/guji-classical.json" with { type: "json" };
+import frontPageDailySpec from "../renderer/specs/front-page-daily.json" with { type: "json" };
+import keynoteSheetSpec from "../renderer/specs/keynote-sheet.json" with { type: "json" };
 import { renderPage } from "../renderer/render-page.tsx";
 import { generatePageId } from "../utils/slug.ts";
 
@@ -61,6 +63,8 @@ const V0_RAW_SPECS: unknown[] = [
   executiveBroadsheetSpec,
   quietLedgerSpec,
   gujiClassicalSpec,
+  frontPageDailySpec,
+  keynoteSheetSpec,
 ];
 
 function buildV0Specs(): Map<string, AestheticSpec> {
