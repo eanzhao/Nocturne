@@ -95,6 +95,21 @@ DATABASE_URL="$(cat ~/.supabase-credentials)" \
   psql "$DATABASE_URL" -f db/migrations/001_nocturne_schema.sql
 ```
 
+## Local CLI (no NyxID, no Postgres, no chrono-storage)
+
+For local use without the NyxID stack, render any content to an HTML file with an OpenAI-compatible API key:
+
+```bash
+export NOCTURNE_OPENAI_API_KEY=sk-...
+echo "..." | bun run format                # stdin → ./out/<slug>.html
+bun run format --in content.md              # file → ./out/<slug>.html
+bun run format --in content.md --out ./page.html
+```
+
+Supported providers: any OpenAI-compatible chat/completions endpoint — OpenAI, OpenRouter, local `llama.cpp` server, etc. Set `NOCTURNE_OPENAI_BASE_URL` and `NOCTURNE_OPENAI_MODEL` to match.
+
+AI agents (Claude Code, Cursor, ...) can discover this CLI automatically via the `.claude/skills/nocturne-format` skill shipped in this repo.
+
 ---
 
 Part of the [NyxID](https://github.com/ChronoAIProject/NyxID) ecosystem.
