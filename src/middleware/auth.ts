@@ -9,7 +9,8 @@
  *                             from NyxID and not a header-spoofing client
  *
  * The middleware verifies the JWT against NyxID's JWKS (`NYXID_JWKS_URL`) and
- * asserts `payload.sub === userIdHeader`. On success, `c.set('user_id', ...)`
+ * asserts `payload.sub === userIdHeader`, `payload.iss === config.NYXID_BASE_URL`,
+ * and `payload.aud === "nocturne"`. On success, `c.set('user_id', ...)`
  * exposes the verified id to downstream handlers.
  *
  * JWKS cache strategy: 10-minute TTL + lazy invalidation on verification
@@ -78,6 +79,7 @@ const defaultFetcher: JwksFetcher = async (url, signal) => {
 };
 
 let fetcher: JwksFetcher = defaultFetcher;
+const NOCTURNE_AUDIENCE = "nocturne";
 
 /**
  * Test-only hook. Swaps the JWKS fetcher so tests can serve a JWKS locally
@@ -146,9 +148,13 @@ async function verifyJwtWithLazyRefresh(
 ): Promise<{ payload: JWTPayload }> {
   const firstJwks = await getJwks(false);
   const firstKey: JWTVerifyGetKey = createLocalJWKSet(firstJwks);
+  const verifyOptions = {
+    issuer: config.NYXID_BASE_URL,
+    audience: NOCTURNE_AUDIENCE,
+  } as const;
 
   try {
-    const { payload } = await jwtVerify(token, firstKey);
+    const { payload } = await jwtVerify(token, firstKey, verifyOptions);
     return { payload };
   } catch (err) {
     if (!isRetryableVerifyError(err)) {
@@ -157,7 +163,7 @@ async function verifyJwtWithLazyRefresh(
     // Lazy invalidation: fetch JWKS once more, swap keyset, retry.
     const refreshedJwks = await getJwks(true);
     const refreshedKey: JWTVerifyGetKey = createLocalJWKSet(refreshedJwks);
-    const { payload } = await jwtVerify(token, refreshedKey);
+    const { payload } = await jwtVerify(token, refreshedKey, verifyOptions);
     return { payload };
   }
 }

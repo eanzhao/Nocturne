@@ -53,7 +53,7 @@ beforeAll(async () => {
 // ---------------------------------------------------------------------------
 // Fixtures
 
-const ISSUER = "https://nyx-test.invalid";
+const ISSUER = process.env.NYXID_BASE_URL ?? "https://nyx-test.invalid";
 const AUDIENCE = "nocturne";
 const USER_ID = "11111111-2222-3333-4444-555555555555";
 
@@ -80,12 +80,17 @@ function jwksOf(...pairs: Keypair[]): JSONWebKeySet {
 
 async function signToken(
   kp: Keypair,
-  opts: { sub?: string; expiresIn?: string } = {},
+  opts: {
+    sub?: string;
+    expiresIn?: string;
+    issuer?: string;
+    audience?: string;
+  } = {},
 ): Promise<string> {
   return new SignJWT({})
     .setProtectedHeader({ alg: "RS256", kid: kp.kid })
-    .setIssuer(ISSUER)
-    .setAudience(AUDIENCE)
+    .setIssuer(opts.issuer ?? ISSUER)
+    .setAudience(opts.audience ?? AUDIENCE)
     .setSubject(opts.sub ?? USER_ID)
     .setIssuedAt()
     .setExpirationTime(opts.expiresIn ?? "60s")
@@ -203,6 +208,48 @@ describe("nyxidAuth", () => {
 
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: "identity_mismatch" });
+  });
+
+  test("wrong issuer returns 401 invalid_identity_token", async () => {
+    const kp = await makeKeypair("k1");
+    currentJwks = jwksOf(kp);
+    const token = await signToken(kp, {
+      sub: USER_ID,
+      issuer: "https://wrong-issuer.invalid",
+    });
+
+    const app = appWithAuth(authMod.nyxidAuth);
+    const res = await app.request(
+      authedReq({
+        "x-nyxid-user-id": USER_ID,
+        "x-nyxid-identity-token": token,
+      }),
+    );
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: "invalid_identity_token" });
+    expect(fetchCount).toBe(1);
+  });
+
+  test("wrong audience returns 401 invalid_identity_token", async () => {
+    const kp = await makeKeypair("k1");
+    currentJwks = jwksOf(kp);
+    const token = await signToken(kp, {
+      sub: USER_ID,
+      audience: "another-service",
+    });
+
+    const app = appWithAuth(authMod.nyxidAuth);
+    const res = await app.request(
+      authedReq({
+        "x-nyxid-user-id": USER_ID,
+        "x-nyxid-identity-token": token,
+      }),
+    );
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: "invalid_identity_token" });
+    expect(fetchCount).toBe(1);
   });
 
   test("stale JWKS kid triggers one refresh + retry and passes", async () => {

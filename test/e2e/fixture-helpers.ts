@@ -70,7 +70,7 @@ export async function signFor(
 ): Promise<string> {
   return new SignJWT({})
     .setProtectedHeader({ alg: "RS256", kid: kp.kid })
-    .setIssuer("https://nyx-test.invalid")
+    .setIssuer(config.NYXID_BASE_URL)
     .setAudience("nocturne")
     .setSubject(sub)
     .setIssuedAt()
