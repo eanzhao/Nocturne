@@ -92,6 +92,17 @@ export function __resetSpecsForTesting(
   _specsPromise = installed ? Promise.resolve(installed) : null;
 }
 
+/**
+ * Test helper — returns the ids of specs compiled into V0_RAW_SPECS. The
+ * `pipeline.specs.test.ts` regression test uses this to assert the
+ * compile-time list is in sync with the on-disk spec files. If someone
+ * adds a new spec JSON but forgets to add it to V0_RAW_SPECS, that test
+ * fails.
+ */
+export function __getV0SpecIdsForTesting(): string[] {
+  return V0_RAW_SPECS.map((raw) => (raw as { id: string }).id);
+}
+
 // ---------------------------------------------------------------------------
 // Entry point
 
