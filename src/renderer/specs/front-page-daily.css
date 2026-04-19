@@ -87,8 +87,20 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: calc(var(--space-base) * 5);
+  align-items: start;   /* sections keep their own height; no cross-column bleed */
   padding-top: calc(var(--space-base) * 3);
   border-top: 1px solid var(--hairline);
+}
+
+/* Grid children must not overflow their column — critical for notes/watchlist text */
+.spec-front-page-daily .zone-columns > section {
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .spec-front-page-daily .zone-columns {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ---------- Lead story (dominant-lead treatment on first priority) --- */

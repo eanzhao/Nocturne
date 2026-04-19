@@ -524,6 +524,30 @@ describe('front-page-daily specifics', () => {
     expect(html).not.toContain('Call Mom');
     expect(html).toContain('+2 omitted');
   });
+
+  test('front-page-daily .zone-columns uses grid layout with align-items:start (no column overlap)', async () => {
+    // Regression test for the Timeline/Watchlist/Notes column overlap bug.
+    //
+    // Root cause: .zone-columns lacked `align-items: start`, causing the
+    // browser to stretch each section to the height of the tallest sibling.
+    // Combined with content that overflows its grid cell, this produces the
+    // visual overlap where Notes text bleeds into the Watchlist column.
+    //
+    // Fix signal: the spec CSS must declare `align-items: start` inside the
+    // `.zone-columns` grid rule so each section only occupies its own height.
+    const specs = await loadSpecs(SPECS_DIR);
+    const html = renderPage(buildBrief('front-page-daily'), specs.get('front-page-daily')!, CTX);
+
+    // Must NOT use CSS multi-column on the columns zone (that causes flow-through overlap).
+    expect(html).not.toMatch(/\.zone-columns\s*\{[^}]*column-count/);
+
+    // Must use CSS Grid (not flex) so the three sections get hard column boundaries.
+    expect(html).toMatch(/\.spec-front-page-daily\s+\.zone-columns\s*\{[^}]*display:\s*grid/);
+
+    // Must declare align-items: start so section heights are independent and
+    // shorter columns don't stretch into taller neighbours' space.
+    expect(html).toMatch(/\.spec-front-page-daily\s+\.zone-columns\s*\{[^}]*align-items:\s*start/s);
+  });
 });
 
 describe('keynote-sheet specifics', () => {
