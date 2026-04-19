@@ -13,12 +13,14 @@ import {
   type FetchLike,
   type PlannerResult,
 } from "./openai-compat.ts";
+import type { PlannerLanguage } from "./planner-prompt.ts";
 
 export interface PlanDailyBriefWithOpenAIOptions {
   apiKey: string;
   /** Defaults to `https://api.openai.com/v1`. */
   baseUrl?: string;
   model: string;
+  language?: PlannerLanguage;
   fetchImpl?: FetchLike;
   timeoutMs?: number;
 }
@@ -38,6 +40,7 @@ export async function planDailyBriefWithOpenAI(
     apiKey: opts.apiKey,
     model: opts.model,
     rawContent,
+    language: opts.language,
     fetchImpl: opts.fetchImpl,
     timeoutMs: opts.timeoutMs,
   });

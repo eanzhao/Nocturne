@@ -12,6 +12,7 @@ import {
   type FetchLike,
   type PlannerResult,
 } from "./openai-compat.ts";
+import type { PlannerLanguage } from "./planner-prompt.ts";
 
 export {
   PLANNER_SOFT_TIMEOUT_MS,
@@ -33,6 +34,8 @@ export interface PlannerOptions {
   model?: string;
   /** Override the base URL from config. */
   baseUrl?: string;
+  /** Language for LLM-generated content. Defaults to 'en'. */
+  language?: PlannerLanguage;
 }
 
 /**
@@ -56,6 +59,7 @@ export async function planDailyBrief(
     apiKey: delegationToken,
     model,
     rawContent,
+    language: options.language,
     fetchImpl: options.fetchImpl,
     timeoutMs: options.timeoutMs,
   });

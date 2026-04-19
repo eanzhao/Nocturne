@@ -217,6 +217,30 @@ describe('planDailyBrief', () => {
     expect(err.body).toContain('slow down');
   });
 
+  test('language: zh → system prompt contains 简体中文', async () => {
+    let capturedSystemContent = '';
+    const fetchImpl: FetchLike = async (_url, init) => {
+      const body = JSON.parse(String(init.body));
+      capturedSystemContent = body.messages[0].content;
+      return makeJsonResponse(200, wrapLLMContent(VALID_BRIEF));
+    };
+
+    await gateway.planDailyBrief('raw', 'tok', { fetchImpl, language: 'zh' });
+    expect(capturedSystemContent).toContain('简体中文');
+  });
+
+  test('language: en (or unset) → system prompt contains English', async () => {
+    let capturedSystemContent = '';
+    const fetchImpl: FetchLike = async (_url, init) => {
+      const body = JSON.parse(String(init.body));
+      capturedSystemContent = body.messages[0].content;
+      return makeJsonResponse(200, wrapLLMContent(VALID_BRIEF));
+    };
+
+    await gateway.planDailyBrief('raw', 'tok', { fetchImpl });
+    expect(capturedSystemContent).toContain('English');
+  });
+
   test('non-200 non-429 → throws PlannerUpstreamError', async () => {
     const fetchImpl: FetchLike = async () =>
       makeJsonResponse(500, { error: 'boom' });

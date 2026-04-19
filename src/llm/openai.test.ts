@@ -90,6 +90,79 @@ describe("planDailyBriefWithOpenAI", () => {
     ).rejects.toBeInstanceOf(PlannerUpstreamError);
   });
 
+  it("language: 'zh' sends system prompt containing '简体中文'", async () => {
+    let capturedSystemContent = "";
+    const fetchImpl = async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(init.body as string);
+      capturedSystemContent = body.messages[0].content;
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  content_type: "daily_brief_v1",
+                  spec_id: "executive-broadsheet",
+                  title: "T",
+                  summary: "s",
+                  top_priorities: [],
+                  watchlist: [],
+                  timeline: [],
+                  notes: [],
+                }),
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    };
+    await planDailyBriefWithOpenAI("hello", {
+      apiKey: "sk-test",
+      baseUrl: "https://example.test/v1",
+      model: "gpt-test",
+      language: "zh",
+      fetchImpl,
+    });
+    expect(capturedSystemContent).toContain("简体中文");
+  });
+
+  it("language: 'en' (or unset) sends system prompt containing 'English'", async () => {
+    let capturedSystemContent = "";
+    const fetchImpl = async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(init.body as string);
+      capturedSystemContent = body.messages[0].content;
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  content_type: "daily_brief_v1",
+                  spec_id: "executive-broadsheet",
+                  title: "T",
+                  summary: "s",
+                  top_priorities: [],
+                  watchlist: [],
+                  timeline: [],
+                  notes: [],
+                }),
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    };
+    await planDailyBriefWithOpenAI("hello", {
+      apiKey: "sk-test",
+      baseUrl: "https://example.test/v1",
+      model: "gpt-test",
+      fetchImpl,
+    });
+    expect(capturedSystemContent).toContain("English");
+  });
+
   it("surfaces AbortSignal timeout as PlannerTimeout", async () => {
     const fetchImpl = async (_url: string, init: RequestInit) => {
       return new Promise<Response>((_resolve, reject) => {
