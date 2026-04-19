@@ -411,16 +411,18 @@ function runConfigList(cfg: LocalConfig): void {
 }
 
 function runConfigGet(cfg: LocalConfig, key: ConfigKey): void {
-  const val =
-    key === "model"
-      ? cfg.model
-      : key === "base_url"
-        ? cfg.baseUrl
-        : key === "out_dir"
-          ? cfg.outDir
-          : key === "api_key"
-            ? cfg.apiKey
-            : cfg.llmRoute;
+  // Single lookup table — adding a new config key here is the one edit
+  // required on top of extending `CONFIG_KEYS`. The prior chain-of-ternaries
+  // shape silently bucketed unknown keys into `llmRoute`.
+  const lookup: Record<ConfigKey, string | undefined> = {
+    model: cfg.model,
+    base_url: cfg.baseUrl,
+    out_dir: cfg.outDir,
+    api_key: cfg.apiKey,
+    llm_route: cfg.llmRoute,
+    language: cfg.language,
+  };
+  const val = lookup[key];
   if (val === undefined) {
     process.exit(1);
   }
@@ -429,13 +431,17 @@ function runConfigGet(cfg: LocalConfig, key: ConfigKey): void {
 
 function runConfigSet(key: ConfigKey, value: string): void {
   // Light validation — the schema's main job is at read time, but catching
-  // bad URLs here gives a friendlier error than re-failing next invocation.
+  // bad values here gives a friendlier error than re-failing next invocation
+  // AND prevents writing a file the CLI itself will then refuse to read.
   if (key === "base_url") {
     try {
       new URL(value);
     } catch {
       fail(`config set: base_url must be a valid URL, got "${value}"`);
     }
+  }
+  if (key === "language" && value !== "en" && value !== "zh") {
+    fail(`config set: language must be one of "en" | "zh", got "${value}"`);
   }
   writeConfigFile({ [key]: value });
   const suffix = key === "api_key" ? ` (masked: ${mask(value)})` : ` = ${value}`;
