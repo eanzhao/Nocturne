@@ -8,7 +8,9 @@
  * (`src/schema/daily-brief.ts`) in the same change.
  */
 
-export const PLANNER_SYSTEM_PROMPT = `You are Nocturne's layout planner. Transform raw AI daily output into a compact daily_brief_v1 JSON document.
+export type PlannerLanguage = "en" | "zh";
+
+const PLANNER_SYSTEM_PROMPT_BODY = `You are Nocturne's layout planner. Transform raw AI daily output into a compact daily_brief_v1 JSON document.
 
 Rules:
 - Do not invent facts.
@@ -69,6 +71,17 @@ Schema (daily_brief_v1):
 }
 
 Return JSON only.`;
+
+const LANGUAGE_INSTRUCTIONS: Record<PlannerLanguage, string> = {
+  en: "Respond in English. All string fields in the output JSON must be written in natural English.",
+  zh: "Respond in Simplified Chinese (简体中文). All string fields in the output JSON must be written in natural Simplified Chinese (except spec_id and enum values).",
+};
+
+export function buildSystemPrompt(
+  { language = "en" }: { language?: PlannerLanguage } = {},
+): string {
+  return `${PLANNER_SYSTEM_PROMPT_BODY}\n\nLanguage: ${LANGUAGE_INSTRUCTIONS[language]}`;
+}
 
 /**
  * Wrap the caller's raw brief content in a `<brief>` tag so the model can
