@@ -61,6 +61,45 @@ describe("readConfigFile", () => {
     writeFileSync(path, JSON.stringify({ base_url: "not-a-url" }));
     expect(() => readConfigFile(path)).toThrow(ConfigFileError);
   });
+
+  it("accepts language: 'en'", () => {
+    const path = join(tmp, "config.json");
+    writeFileSync(path, JSON.stringify({ language: "en" }));
+    const data = readConfigFile(path);
+    expect(data.language).toBe("en");
+  });
+
+  it("accepts language: 'zh'", () => {
+    const path = join(tmp, "config.json");
+    writeFileSync(path, JSON.stringify({ language: "zh" }));
+    const data = readConfigFile(path);
+    expect(data.language).toBe("zh");
+  });
+
+  it("rejects language: 'fr' (not in enum)", () => {
+    const path = join(tmp, "config.json");
+    writeFileSync(path, JSON.stringify({ language: "fr" }));
+    expect(() => readConfigFile(path)).toThrow(ConfigFileError);
+  });
+
+  it("rejects language: 'english' (long form not accepted)", () => {
+    const path = join(tmp, "config.json");
+    writeFileSync(path, JSON.stringify({ language: "english" }));
+    expect(() => readConfigFile(path)).toThrow(ConfigFileError);
+  });
+
+  it("rejects language: '' (empty string rejected by enum)", () => {
+    const path = join(tmp, "config.json");
+    writeFileSync(path, JSON.stringify({ language: "" }));
+    expect(() => readConfigFile(path)).toThrow(ConfigFileError);
+  });
+
+  it("succeeds with language undefined when not set", () => {
+    const path = join(tmp, "config.json");
+    writeFileSync(path, JSON.stringify({}));
+    const data = readConfigFile(path);
+    expect(data.language).toBeUndefined();
+  });
 });
 
 describe("writeConfigFile", () => {

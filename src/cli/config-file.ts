@@ -35,6 +35,7 @@ export const CONFIG_KEYS = [
   "out_dir",
   "api_key",
   "llm_route",
+  "language",
 ] as const;
 export type ConfigKey = (typeof CONFIG_KEYS)[number];
 
@@ -49,6 +50,9 @@ const ConfigFileSchema = z
     // Accepts a bare slug (`chrono-llm`) or a full path. Empty / missing =
     // use the LLM Gateway (default).
     llm_route: z.string().min(1).optional(),
+    // `language` — ISO 639-1 code for the planner's output language.
+    // Defaults to 'en' when unset. Today: 'en' | 'zh'.
+    language: z.enum(["en", "zh"]).optional(),
   })
   .strict();
 
