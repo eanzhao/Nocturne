@@ -41,5 +41,6 @@
     "med":  "#6b5e4d",
     "low":  "rgba(31,25,19,0.30)"
   },
+  "visual_style_hint": "neutral photojournalism, muted colors, corporate editorial documentary",
   "print": { "paper": "A4", "orientation": "portrait", "margin_mm": 18 }
 }

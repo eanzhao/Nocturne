@@ -34,5 +34,6 @@
   },
   "pull_quote_role": "coda",
   "severity_style": "bracketed-text",
+  "visual_style_hint": "minimal desaturated document photography, grayscale-leaning, restrained detail",
   "print": { "paper": ["A4", "A5"], "orientation": "portrait", "margin_mm": 22 }
 }

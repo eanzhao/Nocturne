@@ -17,11 +17,11 @@
  */
 
 /* ---------------------------------------------------------------------- */
-/* Default page geometry: executive-broadsheet (the default when in doubt) */
+/* Default page geometry (catch-all for any spec without a named @page)   */
 /* ---------------------------------------------------------------------- */
 @page {
   size: A4 portrait;
-  margin: 18mm;
+  margin: 16mm;
 }
 
 @media print {
@@ -80,61 +80,54 @@
   a[href]::after { content: ""; }
 }
 
-/* ---------------------------------------------------------------------- */
-/* Per-spec @page overrides                                               */
-/*                                                                        */
-/* Browsers apply the @page rule matched to the printing document. We use */
-/* named page selectors bound to the spec class via `page: <name>` on the */
-/* body. This is the portable way to get per-spec margins + orientation.  */
-/* ---------------------------------------------------------------------- */
+/* -------------------------------------------------------------------------
+ * Per-spec @page rules.
+ *
+ * TEMPLATE — each new spec adds:
+ *
+ *   @page <spec-id> {
+ *     size: A4 {portrait|landscape};
+ *     margin: {14..22}mm;
+ *   }
+ *   .spec-<spec-id> { page: <spec-id>; }
+ *
+ * The default (unnamed) @page below catches anything that doesn't opt in.
+ *
+ * CSS custom properties CANNOT be used inside @page in most browsers,
+ * so we accept the repetition. The template keeps it navigable.
+ *
+ * Ordered alphabetically by spec id.
+ * ----------------------------------------------------------------------- */
 
-/* executive-broadsheet: A4 portrait, 18mm (matches the default above, but
- * we name it explicitly so a future spec change doesn't silently inherit). */
 @page executive-broadsheet {
   size: A4 portrait;
   margin: 18mm;
 }
 .spec-executive-broadsheet { page: executive-broadsheet; }
 
-/* quiet-ledger: A4 or A5 portrait, 22mm. We pick A4 as the print default;
- * A5 is only reachable via an explicit `@media print and (...)` block below
- * when the renderer eventually lets the user choose. */
-@page quiet-ledger {
-  size: A4 portrait;
-  margin: 22mm;
-}
-.spec-quiet-ledger { page: quiet-ledger; }
-
-/* guji-classical: vertical-rl writing mode, A4 LANDSCAPE, 14mm margin, and
- * the CJK-vertical printing expectation from the spec JSON.
- *
- * This is scaffolded NOW so the contract is committed before the renderer
- * for guji-classical exists (per issue #9 direction). The actual renderer
- * work lands with issue #5; this stylesheet will already match.
- */
-@page guji-classical {
-  size: A4 landscape;
-  margin: 14mm;
-}
-.spec-guji-classical {
-  page: guji-classical;
-}
-
-/* front-page-daily: classic newspaper front page, A4 portrait, 16mm margin. */
 @page front-page-daily {
   size: A4 portrait;
   margin: 16mm;
 }
 .spec-front-page-daily { page: front-page-daily; }
 
-/* keynote-sheet: single-slide A4 landscape, 20mm margin. Content beyond
- * one page is truncated by `overflow: hidden` on the spec's container; the
- * browser prints exactly one page. */
+@page guji-classical {
+  size: A4 landscape;
+  margin: 14mm;
+}
+.spec-guji-classical { page: guji-classical; }
+
 @page keynote-sheet {
   size: A4 landscape;
   margin: 20mm;
 }
 .spec-keynote-sheet { page: keynote-sheet; }
+
+@page quiet-ledger {
+  size: A4 portrait;
+  margin: 22mm;
+}
+.spec-quiet-ledger { page: quiet-ledger; }
 
 @media print {
   .spec-guji-classical {

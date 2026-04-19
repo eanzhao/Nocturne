@@ -2,7 +2,7 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, it, test } from 'bun:test';
 
 import { AestheticSpecSchema, loadSpecs } from './aesthetic-spec.ts';
 
@@ -95,5 +95,93 @@ describe('loadSpecs', () => {
     );
 
     await expect(loadSpecs(tmp)).rejects.toThrow(/validation failed/);
+  });
+});
+
+describe('AestheticSpecSchema — visual_style_hint', () => {
+  const baseValidSpec = {
+    id: 'test-spec',
+    name: 'Test',
+    description: 'For tests',
+    writing_mode: 'horizontal-lr',
+    fonts: { headline: 'a', body: 'a', label: 'a', mono: 'a' },
+    palette: { bg: '#fff', fg: '#000', muted: '#888', accent: null, hairline: '#000' },
+    spacing: { base: 4, column_gap: 16, column_count_desktop: 3, max_width: 780 },
+    hero_priority_treatment: 'first-as-hero',
+    block_zones: { main: ['summary'] },
+    overflow_strategy: { summary: { max: 1, on_overflow: 'truncate-with-count' } },
+    pull_quote_role: 'none',
+    severity_style: 'none',
+    print: { paper: 'A4', orientation: 'portrait', margin_mm: 16 },
+  };
+
+  it('requires visual_style_hint', () => {
+    const { visual_style_hint: _, ...withoutHint } = {
+      ...baseValidSpec,
+      visual_style_hint: 'anything',
+    };
+    const result = AestheticSpecSchema.safeParse(withoutHint);
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts a non-empty visual_style_hint', () => {
+    const result = AestheticSpecSchema.safeParse({
+      ...baseValidSpec,
+      visual_style_hint: 'documentary photography, muted colors',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects an empty visual_style_hint', () => {
+    const result = AestheticSpecSchema.safeParse({
+      ...baseValidSpec,
+      visual_style_hint: '',
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('AestheticSpecSchema — new block names', () => {
+  const baseValidSpec = {
+    id: 'test-block-names',
+    name: 'Test',
+    description: 'For tests',
+    writing_mode: 'horizontal-lr',
+    fonts: { headline: 'a', body: 'a', label: 'a', mono: 'a' },
+    palette: { bg: '#fff', fg: '#000', muted: '#888', accent: null, hairline: '#000' },
+    spacing: { base: 4, column_gap: 16, column_count_desktop: 3, max_width: 780 },
+    hero_priority_treatment: 'first-as-hero',
+    overflow_strategy: {},
+    pull_quote_role: 'none',
+    severity_style: 'none',
+    visual_style_hint: 'hint',
+    print: { paper: 'A4', orientation: 'portrait', margin_mm: 16 },
+  };
+
+  const newNames = [
+    'ornament_strip',
+    'geometric_module',
+    'diagonal_slab',
+    'sidenote_column',
+    'figure_plate',
+    'figure_strip',
+  ] as const;
+
+  for (const name of newNames) {
+    it(`accepts "${name}" in block_zones`, () => {
+      const result = AestheticSpecSchema.safeParse({
+        ...baseValidSpec,
+        block_zones: { main: [name] },
+      });
+      expect(result.success).toBe(true);
+    });
+  }
+
+  it('rejects an unknown block name', () => {
+    const result = AestheticSpecSchema.safeParse({
+      ...baseValidSpec,
+      block_zones: { main: ['not_a_block' as never] },
+    });
+    expect(result.success).toBe(false);
   });
 });

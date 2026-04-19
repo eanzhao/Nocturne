@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { AestheticSpecSchema, loadSpecs } from '../schema/aesthetic-spec.ts';
 import { DailyBriefBlock, type DailyBrief } from '../schema/daily-brief.ts';
 import type { AestheticSpec } from '../schema/aesthetic-spec.ts';
-import { renderPage, type RenderCtx } from './render-page.tsx';
+import { renderPage, BLOCK_COMPONENTS, type RenderCtx } from './render-page.tsx';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SPECS_DIR = join(__dirname, 'specs');
@@ -90,13 +90,16 @@ describe('renderPage — all specs', () => {
     'keynote-sheet',
   ] as const;
 
+  const REFERENCE_FULL_HTML_SPEC_ID = 'front-page-daily';
+
   for (const id of specIds) {
-    test(`snapshot: ${id} × full daily_brief_v1 fixture`, async () => {
+    test(`structural: ${id} × full daily_brief_v1 fixture`, async () => {
       const specs = await loadSpecs(SPECS_DIR);
       const spec = specs.get(id)!;
       const html = renderPage(buildBrief(id), spec, CTX);
 
-      // Structural assertions that won't churn on CSS edits.
+      // Structural assertions that every spec must honor, regardless
+      // of visual design. These are cheap and catch broken renders.
       expect(html.startsWith('<!doctype html>')).toBe(true);
       expect(html).toContain(`data-writing-mode="${spec.writing_mode}"`);
       expect(html).toContain(`spec-${id}`);
@@ -113,8 +116,13 @@ describe('renderPage — all specs', () => {
       expect(html).toContain('2026-04-17');
       expect(html).toContain('NOCTURNE');
       expect(html).toContain('window.print()');
-      // Auto-snapshot keyed by spec id.
-      expect(html).toMatchSnapshot(`render-${id}`);
+
+      // Keep a full-HTML snapshot ONLY for the reference spec. All
+      // others rely on structural assertions + their own per-spec
+      // behavior tests further down. This caps snap-file growth.
+      if (id === REFERENCE_FULL_HTML_SPEC_ID) {
+        expect(html).toMatchSnapshot(`render-${id}`);
+      }
     });
   }
 
@@ -564,5 +572,71 @@ describe('keynote-sheet specifics', () => {
       CTX,
     );
     expect(html).toMatch(/<body[^>]*class="[^"]*\borientation-landscape\b/);
+  });
+});
+
+describe('BLOCK_COMPONENTS — figure_plate ctx.page_id threading', () => {
+  test('figure_plate uses ctx.page_id (not placeholder) in media URL', async () => {
+    const specs = await loadSpecs(SPECS_DIR);
+    const spec = specs.get('executive-broadsheet')!;
+    const brief = DailyBriefBlock.parse({
+      content_type: 'daily_brief_v1',
+      title: 'Media test',
+      spec_id: 'executive-broadsheet',
+      visual_intents: [{ block_ref: 'fig1', kind: 'image' }],
+      visual_assets: [
+        {
+          block_ref: 'fig1',
+          object_ref: 'nocturne-media/u1/p1/fig1.png',
+          provider: 'flux-schnell',
+          revision: 1,
+          status: 'ok',
+          mime: 'image/png',
+        },
+      ],
+    });
+
+    // Call BLOCK_COMPONENTS.figure_plate directly so we don't need a spec
+    // that lists figure_plate in its block_zones.
+    const html = String(BLOCK_COMPONENTS.figure_plate({ brief, spec, ctx: CTX }));
+    expect(html).toContain(`src="/m/${CTX.page_id}/fig1"`);
+    expect(html).not.toContain('page-id-placeholder');
+  });
+
+  test('figure_strip uses ctx.page_id (not placeholder) in media URLs', async () => {
+    const specs = await loadSpecs(SPECS_DIR);
+    const spec = specs.get('executive-broadsheet')!;
+    const brief = DailyBriefBlock.parse({
+      content_type: 'daily_brief_v1',
+      title: 'Strip test',
+      spec_id: 'executive-broadsheet',
+      visual_intents: [
+        { block_ref: 'fig1', kind: 'image' },
+        { block_ref: 'fig2', kind: 'image' },
+      ],
+      visual_assets: [
+        {
+          block_ref: 'fig1',
+          object_ref: 'nocturne-media/u1/p1/fig1.png',
+          provider: 'flux-schnell',
+          revision: 1,
+          status: 'ok',
+          mime: 'image/png',
+        },
+        {
+          block_ref: 'fig2',
+          object_ref: 'nocturne-media/u1/p1/fig2.png',
+          provider: 'flux-schnell',
+          revision: 1,
+          status: 'ok',
+          mime: 'image/png',
+        },
+      ],
+    });
+
+    const html = String(BLOCK_COMPONENTS.figure_strip({ brief, spec, ctx: CTX }));
+    expect(html).toContain(`src="/m/${CTX.page_id}/fig1"`);
+    expect(html).toContain(`src="/m/${CTX.page_id}/fig2"`);
+    expect(html).not.toContain('page-id-placeholder');
   });
 });

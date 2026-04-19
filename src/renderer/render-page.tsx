@@ -28,11 +28,17 @@ const SPEC_CSS: Record<string, string> = {
 import { type AestheticSpec, type BlockName } from '../schema/aesthetic-spec.ts';
 import type { DailyBrief } from '../schema/daily-brief.ts';
 import { CHROME_SCRIPT, Chrome, ProvenanceStrip, type ChromeCtx } from './blocks/Chrome.tsx';
+import { DiagonalSlab } from './blocks/DiagonalSlab.tsx';
+import { FigurePlate } from './blocks/FigurePlate.tsx';
+import { FigureStrip } from './blocks/FigureStrip.tsx';
+import { GeometricModule } from './blocks/GeometricModule.tsx';
 import { Hero } from './blocks/Hero.tsx';
 import { Masthead } from './blocks/Masthead.tsx';
 import { Notes } from './blocks/Notes.tsx';
+import { OrnamentStrip } from './blocks/OrnamentStrip.tsx';
 import { PriorityList } from './blocks/PriorityList.tsx';
 import { PullQuote } from './blocks/PullQuote.tsx';
+import { SidenoteColumn } from './blocks/SidenoteColumn.tsx';
 import { Summary } from './blocks/Summary.tsx';
 import { Timeline } from './blocks/Timeline.tsx';
 import { Watchlist } from './blocks/Watchlist.tsx';
@@ -49,9 +55,9 @@ export interface RenderCtx extends ChromeCtx {}
  *
  * Names match the strings used inside AestheticSpec JSON files.
  */
-const BLOCK_COMPONENTS: Record<
+export const BLOCK_COMPONENTS: Record<
   BlockName,
-  (props: { brief: DailyBrief; spec: AestheticSpec }) => unknown
+  (props: { brief: DailyBrief; spec: AestheticSpec; ctx: RenderCtx }) => unknown
 > = {
   hero_quote: ({ brief, spec }) => <PullQuote brief={brief} spec={spec} />,
   pull_quote: ({ brief, spec }) => <PullQuote brief={brief} spec={spec} />,
@@ -63,6 +69,20 @@ const BLOCK_COMPONENTS: Record<
   watchlist: ({ brief, spec }) => <Watchlist brief={brief} spec={spec} />,
   notes: ({ brief, spec }) => <Notes brief={brief} spec={spec} />,
   masthead_banner: ({ brief }) => <Masthead brief={brief} />,
+  ornament_strip: () => <OrnamentStrip />,
+  geometric_module: () => <GeometricModule />,
+  diagonal_slab: () => <DiagonalSlab />,
+  sidenote_column: ({ brief }) => <SidenoteColumn brief={brief} />,
+  figure_plate: ({ brief, ctx }) => {
+    // When block_zones lists a single `figure_plate`, render the
+    // FIRST visual_intent only — specs wanting multiple figures use
+    // `figure_strip` instead. This mirrors how `hero_quote` renders
+    // one quote while `pull_quote` supports multiple placements.
+    const first = brief.visual_intents?.[0];
+    if (!first) return null;
+    return <FigurePlate brief={brief} blockRef={first.block_ref} pageIdHint={ctx.page_id} />;
+  },
+  figure_strip: ({ brief, ctx }) => <FigureStrip brief={brief} pageIdHint={ctx.page_id} />,
 };
 
 // The `Record<BlockName, ...>` typing above forces TS to fail if a new name
@@ -158,11 +178,12 @@ function renderZone(
   blockNames: BlockName[],
   brief: DailyBrief,
   spec: AestheticSpec,
+  ctx: RenderCtx,
 ) {
   const cssClass = `zone zone-${zoneName}`;
   return (
     <section class={cssClass} data-zone={zoneName}>
-      {blockNames.map((name) => BLOCK_COMPONENTS[name]({ brief, spec }) as unknown)}
+      {blockNames.map((name) => BLOCK_COMPONENTS[name]({ brief, spec, ctx }) as unknown)}
     </section>
   );
 }
@@ -223,7 +244,7 @@ export function renderPage(
 
   const zonesHtml = zoneEntries
     .map(([name, blocks]) =>
-      renderZone(name, blocks, brief, spec).toString(),
+      renderZone(name, blocks, brief, spec, ctx).toString(),
     )
     .join('');
 

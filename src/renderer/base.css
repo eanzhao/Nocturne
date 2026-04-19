@@ -47,6 +47,14 @@ a:hover { text-decoration-thickness: 2px; }
 
 :root {
   color-scheme: light;
+
+  /* Page sizing defaults. Specs may override in .spec-<id> { ... }
+     for in-document layout math. These do NOT feed @page rules —
+     browsers do not honor custom properties inside @page. See
+     print.css for the actual per-spec @page blocks. */
+  --page-size: A4;
+  --page-orientation: portrait;
+  --page-margin-mm: 16mm;
 }
 
 html {

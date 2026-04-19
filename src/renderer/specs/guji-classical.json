@@ -38,5 +38,6 @@
   "severity_style": "traditional-mark",
   "severity_marks": { "high": "●", "med": "○", "low": "＋" },
   "mobile_fallback": "horizontal-lr",
+  "visual_style_hint": "classical Chinese ink painting, traditional woodblock engraving style, restrained palette, reverent framing",
   "print": { "paper": "A4", "orientation": "landscape", "margin_mm": 14, "cjk_vertical": true }
 }

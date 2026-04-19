@@ -18,6 +18,8 @@ import {
 import executiveBroadsheetSpec from "../renderer/specs/executive-broadsheet.json" with { type: "json" };
 import quietLedgerSpec from "../renderer/specs/quiet-ledger.json" with { type: "json" };
 import gujiClassicalSpec from "../renderer/specs/guji-classical.json" with { type: "json" };
+import frontPageDailySpec from "../renderer/specs/front-page-daily.json" with { type: "json" };
+import keynoteSheetSpec from "../renderer/specs/keynote-sheet.json" with { type: "json" };
 import { renderPage } from "../renderer/render-page.tsx";
 import { generatePageId } from "../utils/slug.ts";
 
@@ -61,6 +63,8 @@ const V0_RAW_SPECS: unknown[] = [
   executiveBroadsheetSpec,
   quietLedgerSpec,
   gujiClassicalSpec,
+  frontPageDailySpec,
+  keynoteSheetSpec,
 ];
 
 function buildV0Specs(): Map<string, AestheticSpec> {
@@ -86,6 +90,17 @@ export function __resetSpecsForTesting(
   installed?: Map<string, AestheticSpec>,
 ): void {
   _specsPromise = installed ? Promise.resolve(installed) : null;
+}
+
+/**
+ * Test helper — returns the ids of specs compiled into V0_RAW_SPECS. The
+ * `pipeline.specs.test.ts` regression test uses this to assert the
+ * compile-time list is in sync with the on-disk spec files. If someone
+ * adds a new spec JSON but forgets to add it to V0_RAW_SPECS, that test
+ * fails.
+ */
+export function __getV0SpecIdsForTesting(): string[] {
+  return V0_RAW_SPECS.map((raw) => (raw as { id: string }).id);
 }
 
 // ---------------------------------------------------------------------------
