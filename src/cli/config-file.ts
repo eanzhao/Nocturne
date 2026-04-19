@@ -112,12 +112,12 @@ export function writeConfigFile(
   const current = readConfigFile(path);
   const merged: ConfigFile = { ...current };
   for (const [k, v] of Object.entries(updates) as Array<
-    [ConfigKey, string | undefined]
+    [ConfigKey, ConfigFile[ConfigKey]]
   >) {
     if (v === undefined) {
       delete merged[k];
     } else {
-      merged[k] = v;
+      (merged as Record<string, unknown>)[k] = v;
     }
   }
   const dir = dirname(path);

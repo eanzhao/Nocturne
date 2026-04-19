@@ -233,6 +233,14 @@ Env vars (override config file):
   NOCTURNE_OUT_DIR          (default: ./out)
   NOCTURNE_LLM_ROUTE        (empty = LLM gateway; set to a proxy-service slug
                              like "chrono-llm" to route through /api/v1/proxy/s/<slug>)
+
+Config keys:
+  model       LLM model name
+  base_url    OpenAI-compatible base URL
+  out_dir     Output directory for rendered pages
+  api_key     OpenAI API key (stored 0600; prefer NyxID)
+  llm_route   Proxy-service slug (NyxID path only)
+  language    Language for LLM-generated content: en (default) | zh
 `);
 }
 
@@ -383,6 +391,7 @@ function runConfigList(cfg: LocalConfig): void {
     ["out_dir", fmtValue("out_dir", cfg.outDir), cfg.sources.out_dir],
     ["api_key", fmtValue("api_key", cfg.apiKey), cfg.sources.api_key],
     ["llm_route", fmtValue("llm_route", cfg.llmRoute), cfg.sources.llm_route],
+    ["language", fmtValue("language", cfg.language), cfg.sources.language],
   ];
   const keyW = Math.max(...rows.map((r) => r[0].length));
   const valW = Math.max(...rows.map((r) => r[1].length));
@@ -754,6 +763,7 @@ async function main(): Promise<void> {
           apiKey: source.apiKey,
           baseUrl: source.baseUrl,
           model: source.model,
+          language: cfg.language,
         }),
       model: source.model,
       userId: "local",

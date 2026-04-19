@@ -14,8 +14,10 @@ describe("loadLocalConfig", () => {
       out_dir: "default",
       api_key: "default",
       llm_route: "default",
+      language: "default",
     });
     expect(cfg.llmRoute).toBeUndefined();
+    expect(cfg.language).toBeUndefined();
   });
 
   it("file values are used when env is empty", () => {
@@ -40,6 +42,7 @@ describe("loadLocalConfig", () => {
       out_dir: "file",
       api_key: "file",
       llm_route: "file",
+      language: "default",
     });
   });
 
@@ -67,6 +70,18 @@ describe("loadLocalConfig", () => {
     expect(cfg.apiKey).toBe("sk-env");
     expect(cfg.sources.model).toBe("env");
     expect(cfg.sources.api_key).toBe("env");
+  });
+
+  it("language from file is surfaced as cfg.language with source 'file'", () => {
+    const cfg = loadLocalConfig({}, { language: "zh" });
+    expect(cfg.language).toBe("zh");
+    expect(cfg.sources.language).toBe("file");
+  });
+
+  it("language unset in file → cfg.language undefined, source 'default'", () => {
+    const cfg = loadLocalConfig({}, {});
+    expect(cfg.language).toBeUndefined();
+    expect(cfg.sources.language).toBe("default");
   });
 
   it("empty-string env values are treated as unset (file still wins)", () => {
