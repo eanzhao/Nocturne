@@ -16,6 +16,7 @@
 import { z } from "zod";
 
 import type { ConfigFile, ConfigKey } from "./config-file.ts";
+import type { PlannerLanguage } from "../llm/planner-prompt.ts";
 
 export class LocalConfigError extends Error {
   constructor(message: string) {
@@ -43,10 +44,15 @@ export interface LocalConfig {
    * (e.g. `chrono-llm`). `undefined` means "use the gateway" (default).
    */
   llmRoute: string | undefined;
+  /**
+   * ISO 639-1 language code for LLM-generated content. `undefined` means
+   * "use default" (English). Today: 'en' | 'zh'.
+   */
+  language: PlannerLanguage | undefined;
   sources: Record<ConfigKey, ConfigSource>;
 }
 
-const DEFAULTS: Required<Omit<ConfigFile, "api_key" | "llm_route">> = {
+const DEFAULTS: Required<Omit<ConfigFile, "api_key" | "llm_route" | "language">> = {
   base_url: "https://api.openai.com/v1",
   model: "gpt-4o-mini",
   out_dir: "./out",
@@ -129,18 +135,23 @@ export function loadLocalConfig(
     file.llm_route,
   );
 
+  // `language` has no env-var override — it's a config-file-only preference.
+  const language = file.language;
+
   return {
     apiKey: apiKey.value,
     baseUrl: baseUrl.value!,
     model: model.value!,
     outDir: outDir.value!,
     llmRoute: llmRoute.value,
+    language,
     sources: {
       model: model.source,
       base_url: baseUrl.source,
       out_dir: outDir.source,
       api_key: apiKey.source,
       llm_route: llmRoute.source,
+      language: language !== undefined ? "file" : "default",
     },
   };
 }

@@ -233,6 +233,14 @@ Env vars (override config file):
   NOCTURNE_OUT_DIR          (default: ./out)
   NOCTURNE_LLM_ROUTE        (empty = LLM gateway; set to a proxy-service slug
                              like "chrono-llm" to route through /api/v1/proxy/s/<slug>)
+
+Config keys:
+  model       LLM model name
+  base_url    OpenAI-compatible base URL
+  out_dir     Output directory for rendered pages
+  api_key     OpenAI API key (stored 0600; prefer NyxID)
+  llm_route   Proxy-service slug (NyxID path only)
+  language    Language for LLM-generated content: en (default) | zh
 `);
 }
 
@@ -383,6 +391,7 @@ function runConfigList(cfg: LocalConfig): void {
     ["out_dir", fmtValue("out_dir", cfg.outDir), cfg.sources.out_dir],
     ["api_key", fmtValue("api_key", cfg.apiKey), cfg.sources.api_key],
     ["llm_route", fmtValue("llm_route", cfg.llmRoute), cfg.sources.llm_route],
+    ["language", fmtValue("language", cfg.language), cfg.sources.language],
   ];
   const keyW = Math.max(...rows.map((r) => r[0].length));
   const valW = Math.max(...rows.map((r) => r[1].length));
@@ -402,16 +411,18 @@ function runConfigList(cfg: LocalConfig): void {
 }
 
 function runConfigGet(cfg: LocalConfig, key: ConfigKey): void {
-  const val =
-    key === "model"
-      ? cfg.model
-      : key === "base_url"
-        ? cfg.baseUrl
-        : key === "out_dir"
-          ? cfg.outDir
-          : key === "api_key"
-            ? cfg.apiKey
-            : cfg.llmRoute;
+  // Single lookup table — adding a new config key here is the one edit
+  // required on top of extending `CONFIG_KEYS`. The prior chain-of-ternaries
+  // shape silently bucketed unknown keys into `llmRoute`.
+  const lookup: Record<ConfigKey, string | undefined> = {
+    model: cfg.model,
+    base_url: cfg.baseUrl,
+    out_dir: cfg.outDir,
+    api_key: cfg.apiKey,
+    llm_route: cfg.llmRoute,
+    language: cfg.language,
+  };
+  const val = lookup[key];
   if (val === undefined) {
     process.exit(1);
   }
@@ -420,13 +431,17 @@ function runConfigGet(cfg: LocalConfig, key: ConfigKey): void {
 
 function runConfigSet(key: ConfigKey, value: string): void {
   // Light validation — the schema's main job is at read time, but catching
-  // bad URLs here gives a friendlier error than re-failing next invocation.
+  // bad values here gives a friendlier error than re-failing next invocation
+  // AND prevents writing a file the CLI itself will then refuse to read.
   if (key === "base_url") {
     try {
       new URL(value);
     } catch {
       fail(`config set: base_url must be a valid URL, got "${value}"`);
     }
+  }
+  if (key === "language" && value !== "en" && value !== "zh") {
+    fail(`config set: language must be one of "en" | "zh", got "${value}"`);
   }
   writeConfigFile({ [key]: value });
   const suffix = key === "api_key" ? ` (masked: ${mask(value)})` : ` = ${value}`;
@@ -754,6 +769,7 @@ async function main(): Promise<void> {
           apiKey: source.apiKey,
           baseUrl: source.baseUrl,
           model: source.model,
+          language: cfg.language,
         }),
       model: source.model,
       userId: "local",

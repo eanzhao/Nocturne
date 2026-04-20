@@ -2,8 +2,9 @@ import { z } from "zod";
 
 import { DailyBriefBlock, type DailyBrief } from "../schema/daily-brief.ts";
 import {
-  PLANNER_SYSTEM_PROMPT,
+  buildSystemPrompt,
   buildUserPrompt,
+  type PlannerLanguage,
 } from "./planner-prompt.ts";
 
 /** Soft timeout for the planner call, in ms. */
@@ -93,6 +94,7 @@ export interface OpenAICompletionCall {
   apiKey: string;
   model: string;
   rawContent: string;
+  language?: PlannerLanguage;
   fetchImpl?: FetchLike;
   timeoutMs?: number;
 }
@@ -106,7 +108,7 @@ export async function callOpenAICompletion(
   const body = {
     model: call.model,
     messages: [
-      { role: "system", content: PLANNER_SYSTEM_PROMPT },
+      { role: "system", content: buildSystemPrompt({ language: call.language }) },
       { role: "user", content: buildUserPrompt(call.rawContent) },
     ],
     response_format: { type: "json_object" as const },

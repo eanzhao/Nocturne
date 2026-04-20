@@ -211,6 +211,71 @@ describe("CLI: bun run src/cli/format.ts", () => {
     expect(err).toContain("nyxid login");
   }, 10_000);
 
+  it("`config get language` round-trips the value", async () => {
+    const isolatedHome = mkdtempSync(join(tmpdir(), "nocturne-get-lang-"));
+    try {
+      const env = { ...process.env, HOME: isolatedHome };
+      // Set it.
+      const setProc = Bun.spawn({
+        cmd: ["bun", "run", "src/cli/format.ts", "config", "set", "language", "zh"],
+        env,
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      expect(await setProc.exited).toBe(0);
+
+      // Read it back.
+      const getProc = Bun.spawn({
+        cmd: ["bun", "run", "src/cli/format.ts", "config", "get", "language"],
+        env,
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const out = await new Response(getProc.stdout).text();
+      const code = await getProc.exited;
+      expect(code).toBe(0);
+      expect(out.trim()).toBe("zh");
+    } finally {
+      rmSync(isolatedHome, { recursive: true, force: true });
+    }
+  }, 10_000);
+
+  it("`config set language` rejects values outside the enum", async () => {
+    const isolatedHome = mkdtempSync(join(tmpdir(), "nocturne-set-lang-bad-"));
+    try {
+      const env = { ...process.env, HOME: isolatedHome };
+      const proc = Bun.spawn({
+        cmd: ["bun", "run", "src/cli/format.ts", "config", "set", "language", "fr"],
+        env,
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const err = await new Response(proc.stderr).text();
+      const code = await proc.exited;
+      expect(code).not.toBe(0);
+      expect(err).toContain("language");
+      expect(err).toContain("en");
+      expect(err).toContain("zh");
+      // Critical: file must not have been written with the invalid value.
+      // (If it had, the next CLI read would fail with a schema error, but
+      // we assert the write was skipped entirely.)
+      const cfgPath = join(isolatedHome, ".config", "nocturne", "config.json");
+      let fileWritten = true;
+      try {
+        readFileSync(cfgPath, "utf8");
+      } catch {
+        fileWritten = false;
+      }
+      // The file should either not exist, OR not contain the invalid "fr".
+      if (fileWritten) {
+        const body = readFileSync(cfgPath, "utf8");
+        expect(body).not.toContain('"fr"');
+      }
+    } finally {
+      rmSync(isolatedHome, { recursive: true, force: true });
+    }
+  }, 10_000);
+
   it("`status` subcommand prints auth state without hitting the planner", async () => {
     const proc = Bun.spawn({
       cmd: ["bun", "run", "src/cli/format.ts", "status"],
